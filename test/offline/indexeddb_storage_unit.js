@@ -1,7 +1,14 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.offline.indexeddb.V5StorageCell');
+goog.require('shaka.test.IndexedDBUtils');
+goog.require('shaka.test.OfflineUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.Error');
 
 filterDescribe('IndexeddbStorageCell', () => window.indexedDB, () => {
   const IndexedDBUtils = shaka.test.IndexedDBUtils;

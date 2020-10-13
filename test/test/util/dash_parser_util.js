@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -36,9 +37,11 @@ shaka.test.Dash = class {
     const playerInterface = {
       networkingEngine: networkingEngine,
       filter: () => {},
+      makeTextStreamsForClosedCaptions: (manifest) => {},
       onTimelineRegionAdded: fail,  // Should not have any EventStream elements.
       onEvent: fail,
       onError: fail,
+      isLowLatencyMode: () => false,
     };
     const manifest = await dashParser.start('dummy://foo', playerInterface);
     const stream = manifest.variants[0].video;
@@ -64,9 +67,11 @@ shaka.test.Dash = class {
     const playerInterface = {
       networkingEngine: networkingEngine,
       filter: () => {},
+      makeTextStreamsForClosedCaptions: (manifest) => {},
       onTimelineRegionAdded: fail,  // Should not have any EventStream elements.
       onEvent: fail,
       onError: fail,
+      isLowLatencyMode: () => false,
     };
     const p = dashParser.start('dummy://foo', playerInterface);
     await expectAsync(p).toBeRejectedWith(
@@ -127,10 +132,10 @@ shaka.test.Dash = class {
 
     await video.createSegmentIndex();
     const position = video.segmentIndex.find(0);
-    expect(position).not.toBe(null);
+    goog.asserts.assert(position != null, 'Position should not be null!');
 
     const reference = video.segmentIndex.get(position);
-    expect(reference).not.toBe(null);
+    goog.asserts.assert(reference != null, 'Reference should not be null!');
     return reference;
   }
 

@@ -3,7 +3,7 @@
 Shaka Player provides an API for serving ads to make monetization easier
 for apps. Our current API is tailored for our integration with the
 [Interactive Media Ads][] SDKs, but we plan to extend our support to
-other ad providers in v2.7+.
+other ad providers in v3.1+.
 Please note that the current API is likely to undergo significant
 changes as our support extends.
 
@@ -34,9 +34,9 @@ First, you'll need to include the IMA SDK(s) on your HTML page:
     <!-- Shaka Player ui compiled library default CSS: -->
     <link rel="stylesheet" type="text/css" href="dist/controls.css">
     <!-- IMA HTML5 SDK (for serving Client Side ads): -->
-    <script type="text/javascript" src="//imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
+    <script type="text/javascript" src="https://imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
     <!-- IMA DAI SDK (for serving Server Side ads): -->
-    <script type="text/javascript" src="//imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
+    <script type="text/javascript" src="https://imasdk.googleapis.com/js/sdkloader/ima3_dai.js"></script>
     <!-- Your application source: -->
     <script src="myapp.js"></script>
   </head>
@@ -58,7 +58,7 @@ const video = document.getElementById('video');
 const ui = video['ui'];
 // If you're using a non-UI build, this is the div you'll need to create
 // for your layout.
-var container = video.ui.getControls().getControlsContainer();
+const container = video.ui.getControls().getControlsContainer();
 adManager.initClientSide(container, video);
 ```
 
@@ -66,7 +66,7 @@ With the client side logic initialized, you can request ads at any time during
 the presentation.
 
 ```js
-var adsRequest = new google.ima.AdsRequest();
+const adsRequest = new google.ima.AdsRequest();
 // Your ad tag url should go here. We are using a sample ad tag from the
 // IMA HTML5 SDK implementation guide for this tutorial.
 adsRequest.adTagUrl = 'https://pubads.g.doubleclick.net/gampad/ads?' +
@@ -100,7 +100,7 @@ const video = document.getElementById('video');
 const ui = video['ui'];
 // If you're using a non-UI build, this is the div you'll need to create
 // for your layout.
-var container = video.ui.getControls().getControlsContainer();
+const container = video.ui.getControls().getServerSideAdContainer();
 adManager.initServerSide(container, video);
 ```
 
@@ -110,7 +110,7 @@ dynamically inserted ads.
 Requesting a VOD stream:
 
 ```js
-var streamRequest = new google.ima.dai.api.VODStreamRequest();
+const streamRequest = new google.ima.dai.api.VODStreamRequest();
 // Your stream information will go here. We are using IMA's sample stream info
 // in this tutorial.
 streamRequest.contentSourceId = '2528370';
@@ -127,11 +127,9 @@ See [google.ima.dai.api.VODStreamRequest][] for details on the request object.
 [google.ima.dai.api.VODStreamRequest]: https://developers.google.com/interactive-media-ads/docs/sdks/html5/dai/reference/js/VODStreamRequest
 
 Requesting a LIVE stream:
-Please note that we don't support ad tracking information for DAI LIVE streams
-at the moment. It is on our road map for a future release.
 
 ```js
-var streamRequest = new google.ima.dai.api.LiveStreamRequest();
+const streamRequest = new google.ima.dai.api.LiveStreamRequest();
 // Your stream information will go here. We are using IMA's sample stream info
 // in this tutorial.
 streamRequest.assetKey = 'sN_IYUG8STe1ZzhIIE_ksA';

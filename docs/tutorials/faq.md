@@ -87,6 +87,16 @@ you see JSON, you will need to [unwrap the response][wrapping].
 
 <hr>
 
+**Q:** Why doesn't getStats() work in Safari?
+
+**A:** To play HLS content on Safari, we default to using Apple's native src=
+playback.  Since the browser handles playback, we don't get much information.
+
+If you want to disable native playback and use MediaSource playback instead,
+configure [`.streaming.useNativeHlsOnSafari`][StreamingConfiguration] to false.
+
+<hr>
+
 **Q:** Why doesn't my HLS content work?
 
 **A:** If your HLS content uses MPEG2-TS, you may need to enable transmuxing.
@@ -94,7 +104,7 @@ The only browsers capable of playing TS natively are Edge and Chromecast.  You
 will get a `CONTENT_UNSUPPORTED_BY_BROWSER` error on other browsers due to
 their lack of TS support.
 
-You can enable transmuxing by [including mux.js][] v5.5.4+ in your application.
+You can enable transmuxing by [including mux.js][] v5.6.3+ in your application.
 If Shaka Player detects that mux.js has been loaded, we will use it to transmux
 TS content into MP4 on-the-fly, so that the content can be played by the
 browser.
@@ -212,6 +222,22 @@ field, we offer the following configuration:
 player.configure('manifest.dash.ignoreMinBufferTime', true);
 ```
 
+<hr>
+
+**Q:** My HLS stream is failing on Chrome, with a chunk demuxer append failed
+error.
+
+**A:** For a stream to play properly on some browsers, we need to know ahead of
+time what the codecs of the stream are.  If no codec information is provided in
+an HLS manifest, we do our best to guess what the codecs might be, but those
+guesses might not always be accurate.  If an HLS manifest has no codec
+information provided, we default to guessing that the video codec is
+`avc1.42E01E` and the audio codec is `mp4a.40.2`, which can cause problems if
+the stream is actually video-only or audio-only.  In this case, you can enable
+the [`.manifest.disableVideo`][ManifestConfiguration] or
+[`.manifest.disableAudio`][ManifestConfiguration] configurations to signal that
+your content does not have a video or audio stream.
+
 [386]: https://github.com/google/shaka-player/issues/386#issuecomment-227898001
 [489]: https://github.com/google/shaka-player/issues/489#issuecomment-240466224
 [743]: https://github.com/google/shaka-player/issues/743
@@ -219,7 +245,7 @@ player.configure('manifest.dash.ignoreMinBufferTime', true);
 [999]: https://github.com/google/shaka-player/issues/999
 [1667]: https://github.com/google/shaka-player/issues/1667
 [AbrConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shaka.extern.html#.AbrConfiguration
-[AdvancedDrmConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shakaExtern.html#.AdvancedDrmConfiguration
+[AdvancedDrmConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shaka.extern.html#.AdvancedDrmConfiguration
 [BigInteger.js]: https://github.com/peterolson/BigInteger.js
 [CORS]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Access_control_CORS
 [DashManifestConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shaka.extern.html#.DashManifestConfiguration
@@ -231,3 +257,4 @@ player.configure('manifest.dash.ignoreMinBufferTime', true);
 [eme_https]: https://sites.google.com/a/chromium.org/dev/Home/chromium-security/deprecating-powerful-features-on-insecure-origins
 [wrapping]: https://shaka-player-demo.appspot.com/docs/api/tutorial-license-wrapping.html
 [including mux.js]: https://github.com/google/shaka-player/blob/967f3399/demo/index.html#L39
+[ManifestConfiguration]: https://shaka-player-demo.appspot.com/docs/api/shaka.extern.html#.ManifestConfiguration

@@ -1,7 +1,23 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.media.SegmentReference');
+goog.require('shaka.net.NetworkingEngine');
+goog.require('shaka.test.Dash');
+goog.require('shaka.test.FakeNetworkingEngine');
+goog.require('shaka.test.ManifestGenerator');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.AbortableOperation');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.LanguageUtils');
+goog.require('shaka.util.ManifestParserUtils');
+goog.require('shaka.util.PlayerConfiguration');
+goog.require('shaka.util.StringUtils');
+goog.requireType('shaka.dash.DashParser');
 
 // Test basic manifest parsing functionality.
 describe('DashParser Manifest', () => {
@@ -30,10 +46,12 @@ describe('DashParser Manifest', () => {
     onEventSpy = jasmine.createSpy('onEvent');
     playerInterface = {
       networkingEngine: fakeNetEngine,
-      filter: (manifest) => {},
+      filter: (manifest) => Promise.resolve(),
+      makeTextStreamsForClosedCaptions: (manifest) => {},
       onTimelineRegionAdded: fail,  // Should not have any EventStream elements.
       onEvent: shaka.test.Util.spyFunc(onEventSpy),
       onError: fail,
+      isLowLatencyMode: () => false,
     };
   });
 
@@ -259,8 +277,9 @@ describe('DashParser Manifest', () => {
     const manifest = await parser.start('dummy://foo', playerInterface);
     const stream = manifest.variants[0].video;
     await stream.createSegmentIndex();
-    const pos = stream.segmentIndex.find(0);
-    const ref = stream.segmentIndex.get(pos);
+    goog.asserts.assert(stream.segmentIndex != null, 'Null segmentIndex!');
+
+    const ref = Array.from(stream.segmentIndex)[0];
     expect(ref.timestampOffset).toBe(-1);
   });
 
@@ -284,8 +303,9 @@ describe('DashParser Manifest', () => {
     const manifest = await parser.start('dummy://foo', playerInterface);
     const stream = manifest.variants[0].video;
     await stream.createSegmentIndex();
-    const position = stream.segmentIndex.find(0);
-    const ref = stream.segmentIndex.get(position);
+    goog.asserts.assert(stream.segmentIndex != null, 'Null segmentIndex!');
+
+    const ref = Array.from(stream.segmentIndex)[0];
     expect(ref.timestampOffset).toBe(-2);
   });
 
@@ -313,8 +333,9 @@ describe('DashParser Manifest', () => {
     const manifest = await parser.start('dummy://foo', playerInterface);
     const stream = manifest.textStreams[0];
     await stream.createSegmentIndex();
-    const pos = stream.segmentIndex.find(0);
-    const ref = stream.segmentIndex.get(pos);
+    goog.asserts.assert(stream.segmentIndex != null, 'Null segmentIndex!');
+
+    const ref = Array.from(stream.segmentIndex)[0];
     expect(ref).toEqual(new shaka.media.SegmentReference(
         /* startTime= */ 0,
         /* endTime= */ 30,
@@ -327,7 +348,7 @@ describe('DashParser Manifest', () => {
         /* appendWindowEnd= */ 30));
   });
 
-  it('correctly parses closed captions with channels and languages',
+  it('correctly parses mixed captions with channels, services, and languages',
       async () => {
         const source = [
           '<MPD minBufferTime="PT75S">',
@@ -339,16 +360,9 @@ describe('DashParser Manifest', () => {
           '        <SegmentTemplate media="1.mp4" duration="1" />',
           '      </Representation>',
           '    </AdaptationSet>',
-          '    <AdaptationSet mimeType="video/mp4" lang="en" group="1">',
-          '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-608:2015"',
-          '         value="CC1=lang:eng;CC3=lang:swe"/>',
-          '      <Representation bandwidth="200">',
-          '        <SegmentTemplate media="1.mp4" duration="1" />',
-          '      </Representation>',
-          '    </AdaptationSet>',
-          '    <AdaptationSet mimeType="video/mp4" lang="en" group="1">',
-          '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-608:2015"',
-          '         value="1=lang:eng;3=lang:swe,war:1,er:1"/>',
+          '    <AdaptationSet mimeType="video/mp4" lang="ru" group="1">',
+          '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-708:2015"',
+          '         value="1=lang:bos;3=lang:cze,war:1,er:1"/>',
           '      <Representation bandwidth="200">',
           '        <SegmentTemplate media="1.mp4" duration="1" />',
           '      </Representation>',
@@ -361,18 +375,76 @@ describe('DashParser Manifest', () => {
 
         /** @type {shaka.extern.Manifest} */
         const manifest = await parser.start('dummy://foo', playerInterface);
-        // First Representation should be dropped.
         const stream1 = manifest.variants[0].video;
         const stream2 = manifest.variants[1].video;
-        const stream3 = manifest.variants[2].video;
 
-        const expectedClosedCaptions = new Map(
+        const expectedClosedCaptions1 = new Map(
             [['CC1', shaka.util.LanguageUtils.normalize('eng')],
               ['CC3', shaka.util.LanguageUtils.normalize('swe')]]
         );
-        expect(stream1.closedCaptions).toEqual(expectedClosedCaptions);
-        expect(stream2.closedCaptions).toEqual(expectedClosedCaptions);
-        expect(stream3.closedCaptions).toEqual(expectedClosedCaptions);
+
+        const expectedClosedCaptions2 = new Map(
+            [['svc1', shaka.util.LanguageUtils.normalize('bos')],
+              ['svc3', shaka.util.LanguageUtils.normalize('cze')]]
+        );
+        expect(stream1.closedCaptions).toEqual(expectedClosedCaptions1);
+        expect(stream2.closedCaptions).toEqual(expectedClosedCaptions2);
+      });
+
+  it('correctly parses CEA-708 caption tags with service numbers and languages',
+      async () => {
+        const source = [
+          '<MPD minBufferTime="PT75S">',
+          '  <Period id="1" duration="PT30S">',
+          '    <AdaptationSet mimeType="video/mp4" lang="en" group="1">',
+          '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-708:2015"',
+          '         value="1=lang:eng;3=lang:swe,er"/>',
+          '      <Representation bandwidth="200">',
+          '        <SegmentTemplate media="1.mp4" duration="1" />',
+          '      </Representation>',
+          '    </AdaptationSet>',
+          '  </Period>',
+          '</MPD>',
+        ].join('\n');
+
+        fakeNetEngine.setResponseText('dummy://foo', source);
+
+        /** @type {shaka.extern.Manifest} */
+        const manifest = await parser.start('dummy://foo', playerInterface);
+        const stream = manifest.variants[0].video;
+        const expectedClosedCaptions = new Map(
+            [['svc1', shaka.util.LanguageUtils.normalize('eng')],
+              ['svc3', shaka.util.LanguageUtils.normalize('swe')]]
+        );
+        expect(stream.closedCaptions).toEqual(expectedClosedCaptions);
+      });
+
+  it('correctly parses CEA-708 caption tags without service #s and languages',
+      async () => {
+        const source = [
+          '<MPD minBufferTime="PT75S">',
+          '  <Period id="1" duration="PT30S">',
+          '    <AdaptationSet mimeType="video/mp4" lang="en" group="1">',
+          '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-708:2015"',
+          '         value="eng;swe"/>',
+          '      <Representation bandwidth="200">',
+          '        <SegmentTemplate media="1.mp4" duration="1" />',
+          '      </Representation>',
+          '    </AdaptationSet>',
+          '  </Period>',
+          '</MPD>',
+        ].join('\n');
+
+        fakeNetEngine.setResponseText('dummy://foo', source);
+
+        /** @type {shaka.extern.Manifest} */
+        const manifest = await parser.start('dummy://foo', playerInterface);
+        const stream = manifest.variants[0].video;
+        const expectedClosedCaptions = new Map(
+            [['svc1', shaka.util.LanguageUtils.normalize('eng')],
+              ['svc2', shaka.util.LanguageUtils.normalize('swe')]]
+        );
+        expect(stream.closedCaptions).toEqual(expectedClosedCaptions);
       });
 
   it('Detects E-AC3 JOC content by SupplementalProperty', async () => {
@@ -399,34 +471,55 @@ describe('DashParser Manifest', () => {
     expect(stream.mimeType).toBe('audio/eac3-joc');
   });
 
-  it('correctly parses closed captions without channel numbers', async () => {
-    const source = [
-      '<MPD minBufferTime="PT75S">',
-      '  <Period id="1" duration="PT30S">',
-      '    <AdaptationSet mimeType="video/mp4" lang="en" group="1">',
-      '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-608:2015"',
-      '         value="eng;swe"/>',
-      '      <Representation bandwidth="200">',
-      '        <SegmentTemplate media="1.mp4" duration="1" />',
-      '      </Representation>',
-      '    </AdaptationSet>',
-      '  </Period>',
-      '</MPD>',
-    ].join('\n');
+  it('correctly parses CEA-608 closed caption tags without channel numbers',
+      async () => {
+        const source = [
+          '<MPD minBufferTime="PT75S">',
+          '  <Period id="1" duration="PT30S">',
+          '    <AdaptationSet mimeType="video/mp4" lang="en" group="1">',
+          '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-608:2015"',
+          '         value="eng;swe"/>',
+          '      <Representation bandwidth="200">',
+          '        <SegmentTemplate media="1.mp4" duration="1" />',
+          '      </Representation>',
+          '    </AdaptationSet>',
+          '    <AdaptationSet mimeType="video/mp4" lang="en" group="1">',
+          '      <Accessibility schemeIdUri="urn:scte:dash:cc:cea-608:2015"',
+          '         value="eng;swe;fre;pol"/>',
+          '      <Representation bandwidth="200">',
+          '        <SegmentTemplate media="1.mp4" duration="1" />',
+          '      </Representation>',
+          '    </AdaptationSet>',
+          '  </Period>',
+          '</MPD>',
+        ].join('\n');
 
-    fakeNetEngine.setResponseText('dummy://foo', source);
+        fakeNetEngine.setResponseText('dummy://foo', source);
 
-    /** @type {shaka.extern.Manifest} */
-    const manifest = await parser.start('dummy://foo', playerInterface);
-    const stream = manifest.variants[0].video;
-    const expectedClosedCaptions = new Map(
-        [['CC1', shaka.util.LanguageUtils.normalize('eng')],
-          ['CC3', shaka.util.LanguageUtils.normalize('swe')]]
-    );
-    expect(stream.closedCaptions).toEqual(expectedClosedCaptions);
-  });
+        /** @type {shaka.extern.Manifest} */
+        const manifest = await parser.start('dummy://foo', playerInterface);
+        const stream1 = manifest.variants[0].video;
+        const stream2 = manifest.variants[1].video;
 
-  it('correctly parses closed captions with no channel and language info',
+        const expectedClosedCaptions1 = new Map(
+            [['CC1', shaka.util.LanguageUtils.normalize('eng')],
+              ['CC3', shaka.util.LanguageUtils.normalize('swe')]]
+        );
+
+        const expectedClosedCaptions2 = new Map(
+            [
+              ['CC1', shaka.util.LanguageUtils.normalize('eng')],
+              ['CC2', shaka.util.LanguageUtils.normalize('swe')],
+              ['CC3', shaka.util.LanguageUtils.normalize('fre')],
+              ['CC4', shaka.util.LanguageUtils.normalize('pol')],
+            ]
+        );
+
+        expect(stream1.closedCaptions).toEqual(expectedClosedCaptions1);
+        expect(stream2.closedCaptions).toEqual(expectedClosedCaptions2);
+      });
+
+  it('correctly parses CEA-608 caption tags with no channel and language info',
       async () => {
         const source = [
           '<MPD minBufferTime="PT75S">',
@@ -472,8 +565,9 @@ describe('DashParser Manifest', () => {
     const variant = manifest.variants[0];
     const stream = variant.audio;
     await stream.createSegmentIndex();
-    const position = stream.segmentIndex.find(0);
-    const segment = stream.segmentIndex.get(position);
+    goog.asserts.assert(stream.segmentIndex != null, 'Null segmentIndex!');
+
+    const segment = Array.from(stream.segmentIndex)[0];
     expect(segment.initSegmentReference.getUris()[0])
         .toBe('http://example.com/%C8%A7.mp4');
     expect(variant.language).toBe('\u2603');
@@ -957,12 +1051,17 @@ describe('DashParser Manifest', () => {
       '        <SegmentBase indexRange="100-200" />',
       '      </Representation>',
       '    </AdaptationSet>',
-      '    <AdaptationSet id="1" mimeType="application/mp4" codecs="stpp">',
+      '    <AdaptationSet',
+      '      id="1"',
+      '      mimeType="application/mp4"',
+      '      codecs="stpp"',
+      '      lang="en"',
+      '    >',
       '      <Representation>',
       '        <SegmentTemplate media="1.mp4" duration="1" />',
       '      </Representation>',
       '    </AdaptationSet>',
-      '    <AdaptationSet id="2">',
+      '    <AdaptationSet id="2" lang="fr">',
       '      <Representation mimeType="application/mp4" codecs="wvtt">',
       '        <SegmentTemplate media="2.mp4" duration="1" />',
       '      </Representation>',
@@ -1026,7 +1125,7 @@ describe('DashParser Manifest', () => {
       '      </Representation>',
       '    </AdaptationSet>',
       '    <AdaptationSet mimeType="video/mp4">',
-      '      <Representation id="1" bandwidth="1">',
+      '      <Representation id="1" bandwidth="2">',
       '        <SegmentTemplate media="2.mp4">',
       '          <SegmentTimeline>',
       '            <S t="0" d="30" />',
@@ -1053,6 +1152,8 @@ describe('DashParser Manifest', () => {
 
     await variant1.video.createSegmentIndex();
     await variant2.video.createSegmentIndex();
+    goog.asserts.assert(variant1.video.segmentIndex, 'Null segmentIndex!');
+    goog.asserts.assert(variant2.video.segmentIndex, 'Null segmentIndex!');
 
     const variant1Ref = Array.from(variant1.video.segmentIndex)[0];
     const variant2Ref = Array.from(variant2.video.segmentIndex)[0];
@@ -1071,11 +1172,13 @@ describe('DashParser Manifest', () => {
       '        <SegmentTemplate media="1-$Number$.mp4" duration="1" />',
       '      </Representation>',
       '    </AdaptationSet>',
-      '    <AdaptationSet mimeType="audio/mp4">',
+      '    <AdaptationSet mimeType="audio/mp4" lang="en">',
       '      <Representation id="2" bandwidth="0">',
       '        <SegmentTemplate media="2-$Number$.mp4" duration="1" />',
       '      </Representation>',
-      '      <Representation id="3">',
+      '    </AdaptationSet>',
+      '    <AdaptationSet mimeType="audio/mp4" lang="de">',
+      '      <Representation id="3" >',
       '        <SegmentTemplate media="3-$Number$.mp4" duration="1" />',
       '      </Representation>',
       '    </AdaptationSet>',
@@ -1575,5 +1678,50 @@ describe('DashParser Manifest', () => {
     const variant = manifest.variants[0];
     expect(variant.audio).toBeTruthy();
     expect(variant.video).toBeTruthy();
+  });
+
+  // Regression #2650 in v3.0.0
+  // A later BaseURL was being applied to earlier Representations, specifically
+  // in the context of SegmentTimeline.
+  it('uses the correct BaseURL for SegmentTimeline', async () => {
+    const manifestText = [
+      '<MPD type="static">',
+      '  <Period id="1" duration="PT30S">',
+      '    <AdaptationSet id="2" mimeType="video/mp4">',
+      '      <SegmentTemplate media="$Number$.mp4" startNumber="1">',
+      '        <SegmentTimeline>',
+      '          <S t="0" d="30" />',
+      '        </SegmentTimeline>',
+      '      </SegmentTemplate>',
+      '      <Representation id="video-sd" width="640" height="480">',
+      '        <BaseURL>http://example.com/r0/</BaseURL>',
+      '      </Representation>',
+      '      <Representation id="video-hd" width="1920" height="1080">',
+      '        <BaseURL>http://example.com/r1/</BaseURL>',
+      '      </Representation>',
+      '    </AdaptationSet>',
+      '  </Period>',
+      '</MPD>',
+    ].join('\n');
+
+    fakeNetEngine.setResponseText('dummy://foo', manifestText);
+
+    /** @type {shaka.extern.Manifest} */
+    const manifest = await parser.start('dummy://foo', playerInterface);
+
+    const video0 = manifest.variants[0].video;
+    await video0.createSegmentIndex();
+    goog.asserts.assert(video0.segmentIndex, 'Null segmentIndex!');
+    const segment0 = Array.from(video0.segmentIndex)[0];
+    const uri0 = segment0.getUris()[0];
+
+    const video1 = manifest.variants[1].video;
+    await video1.createSegmentIndex();
+    goog.asserts.assert(video1.segmentIndex, 'Null segmentIndex!');
+    const segment1 = Array.from(video1.segmentIndex)[0];
+    const uri1 = segment1.getUris()[0];
+
+    expect(uri0).toBe('http://example.com/r0/1.mp4');
+    expect(uri1).toBe('http://example.com/r1/1.mp4');
   });
 });

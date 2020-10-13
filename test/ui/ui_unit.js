@@ -1,7 +1,23 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.media.ManifestParser');
+goog.require('shaka.test.FakeManifestParser');
+goog.require('shaka.test.ManifestGenerator');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.ui.OverflowMenu');
+goog.require('shaka.ui.ResolutionSelection');
+goog.require('shaka.util.Functional');
+goog.require('shaka.util.Iterables');
+goog.require('shaka.util.Platform');
+goog.requireType('shaka.Player');
+goog.requireType('shaka.ui.Controls');
+goog.requireType('shaka.ui.Overlay');
 
 describe('UI', () => {
   const UiUtils = shaka.test.UiUtils;
@@ -11,12 +27,12 @@ describe('UI', () => {
 
   /** @type {shaka.Player} */
   let player;
-  /** @type {!Element} */
+  /** @type {!HTMLLinkElement} */
   let cssLink;
 
   beforeAll(async () => {
     // Add css file
-    cssLink = document.createElement('link');
+    cssLink = /** @type {!HTMLLinkElement} */(document.createElement('link'));
     await UiUtils.setupCSS(cssLink);
   });
 

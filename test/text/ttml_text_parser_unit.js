@@ -1,7 +1,16 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.test.Util');
+goog.require('shaka.text.Cue');
+goog.require('shaka.text.CueRegion');
+goog.require('shaka.text.TtmlTextParser');
+goog.require('shaka.util.BufferUtils');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.StringUtils');
 
 describe('TtmlTextParser', () => {
   const Cue = shaka.text.Cue;
@@ -148,6 +157,28 @@ describe('TtmlTextParser', () => {
         ],
         '<tt><body><p begin="01:02.05" ' +
         'end="01:02:03.200">Test</p></body></tt>',
+        {periodStart: 7, segmentStart: 0, segmentEnd: 0});
+  });
+
+  it('supports nested cues with an offset', () => {
+    verifyHelper(
+        [
+          {
+            startTime: 69.05,
+            endTime: 3730.2,
+            payload: '',
+            nestedCues: [
+              {
+                payload: 'Nested cue',
+                startTime: 69.05,
+                endTime: 3730.2,
+              },
+            ],
+          },
+        ],
+        '<tt><body><div>' +
+        '<p begin="01:02.05" end="01:02:03.200"><span>Nested cue</span></p>' +
+        '</div></body></tt>',
         {periodStart: 7, segmentStart: 0, segmentEnd: 0});
   });
 
@@ -1048,6 +1079,65 @@ describe('TtmlTextParser', () => {
         ],
         '<tt><body><p begin="01:02.05" end="01:02:03.200">' +
         '<span>äöü</span></p></body></tt>',
+        {periodStart: 0, segmentStart: 0, segmentEnd: 0});
+  });
+
+  // Regression test for b/159050711
+  it('inherits styles from other styles on both element and region', () => {
+    verifyHelper(
+        [
+          {
+            startTime: 0,
+            endTime: 60,
+            payload: '',
+
+            // Styles from regionStyle
+            backgroundColor: 'transparent',
+            color: 'blue',
+            // Styles inherited from backgroundStyle via regionStyle
+            displayAlign: Cue.displayAlign.CENTER,
+            textAlign: Cue.textAlign.CENTER,
+
+            nestedCues: [
+              {
+                startTime: 0,
+                endTime: 60,
+                payload: 'Test',
+
+                // Style from spanStyle, overrides regionStyle
+                backgroundColor: 'white',
+                // Style inherited from regionStyle via spanStyle
+                color: 'blue',
+                // Styles inherited from backgroundStyle via regionStyle via
+                // spanStyle
+                displayAlign: Cue.displayAlign.CENTER,
+                textAlign: Cue.textAlign.CENTER,
+              },
+            ],
+          },
+        ],
+        '<tt xmlns:tts="http://www.w3.org/ns/ttml#styling">' +
+        '<head>' +
+        '  <layout>' +
+        '    <region xml:id="r1" style="regionStyle" />' +
+        '  </layout>' +
+        '  <styling>' +
+        // spanStyle inherits attributes from regionStyle
+        '    <style xml:id="spanStyle" style="regionStyle" ' +
+        '           tts:backgroundColor="white" />' +
+        // regionStyle inherits attributes from backgroundStyle
+        '    <style xml:id="regionStyle" style="backgroundStyle" ' +
+        '           tts:backgroundColor="transparent" tts:color="blue" />' +
+        '    <style xml:id="backgroundStyle" ' +
+        '           tts:displayAlign="center" tts:textAlign="center" ' +
+        '           tts:fontSize="18px" />' +
+        '  </styling>' +
+        '</head>' +
+        '<body><div>' +
+        '  <p begin="00:00" end="01:00" region="r1">' +
+        '    <span style="spanStyle">Test</span>' +
+        '  </p>' +
+        '</div></body></tt>',
         {periodStart: 0, segmentStart: 0, segmentEnd: 0});
   });
 

@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,7 +20,9 @@ shaka.test.UiUtils = class {
     // Create UI
     config = config || {};
     const ui = new shaka.ui.Overlay(player, videoContainer, video);
-    ui.getControls().addEventListener('error', (/** * */ e) => fail(e.detail));
+    // TODO: generate externs automatically from @event types
+    // This event should be a shaka.Player.ErrorEvent
+    ui.getControls().addEventListener('error', (e) => fail(e['detail']));
     ui.configure(config);
     return ui;
   }
@@ -126,7 +129,7 @@ shaka.test.UiUtils = class {
 
 
   /**
-   * @param {!Element} cssLink
+   * @param {!HTMLLinkElement} cssLink
    */
   static async setupCSS(cssLink) {
     const head = document.head;

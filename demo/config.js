@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -127,7 +128,12 @@ shakaDemo.Config = class {
         .addBoolInput_(MessageIds.DELAY_LICENSE,
             'drm.delayLicenseRequestUntilPlayed')
         .addBoolInput_(MessageIds.LOG_LICENSE_EXCHANGE,
-            'drm.logLicenseExchange');
+            'drm.logLicenseExchange')
+        .addNumberInput_(MessageIds.UPDATE_EXPIRATION_TIME,
+            'drm.updateExpirationTime',
+            /* canBeDecimal= */ true,
+            /* canBeZero= */ false,
+            /* canBeUnset= */ true);
     const advanced = shakaDemoMain.getConfiguration().drm.advanced || {};
     const robustnessSuggestions = [
       'SW_SECURE_CRYPTO',
@@ -180,6 +186,8 @@ shakaDemo.Config = class {
             'manifest.dash.ignoreEmptyAdaptationSet')
         .addBoolInput_(MessageIds.IGNORE_HLS_TEXT_FAILURES,
             'manifest.hls.ignoreTextStreamFailures')
+        .addBoolInput_(MessageIds.USE_FULL_SEGMENTS_FOR_START_TIME,
+            'manifest.hls.useFullSegmentsForStartTime')
         .addNumberInput_(MessageIds.AVAILABILITY_WINDOW_OVERRIDE,
             'manifest.availabilityWindowOverride',
             /* canBeDecimal= */ true,
@@ -212,6 +220,8 @@ shakaDemo.Config = class {
     const docLink = this.resolveExternLink_('.AbrConfiguration');
     this.addSection_(MessageIds.ADAPTATION_SECTION_HEADER, docLink)
         .addBoolInput_(MessageIds.ENABLED, 'abr.enabled')
+        .addBoolInput_(MessageIds.NETWORK_INFORMATION,
+            'abr.useNetworkInformation')
         .addNumberInput_(MessageIds.BANDWIDTH_ESTIMATE,
             'abr.defaultBandwidthEstimate')
         .addNumberInput_(MessageIds.BANDWIDTH_DOWNGRADE,
@@ -310,7 +320,9 @@ shakaDemo.Config = class {
             /* canBeDecimal= */ true)
         .addNumberInput_(MessageIds.INACCURATE_MANIFEST_TOLERANCE,
             'streaming.inaccurateManifestTolerance',
-            /* canBeDecimal= */ true);
+            /* canBeDecimal= */ true)
+        .addBoolInput_(MessageIds.LOW_LATENCY,
+            'streaming.lowLatencyMode');
 
     if (!shakaDemoMain.getNativeControlsEnabled()) {
       this.addBoolInput_(MessageIds.ALWAYS_STREAM_TEXT,

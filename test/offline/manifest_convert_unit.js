@@ -1,7 +1,16 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.media.InitSegmentReference');
+goog.require('shaka.media.PresentationTimeline');
+goog.require('shaka.media.SegmentIndex');
+goog.require('shaka.offline.ManifestConverter');
+goog.require('shaka.offline.OfflineUri');
+goog.require('shaka.util.ManifestParserUtils');
+goog.requireType('shaka.media.SegmentReference');
 
 describe('ManifestConverter', () => {
   describe('createVariants', () => {

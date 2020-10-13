@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -36,4 +37,5 @@ shaka.ui.Enums.MaterialDesignIcons = {
   'PLAYBACK_RATE': 'slow_motion_video',
   'PAUSE': 'pause',
   'LOOP': 'loop',
+  'AIRPLAY': 'airplay',
 };

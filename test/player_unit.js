@@ -1,7 +1,30 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.Player');
+goog.require('shaka.log');
+goog.require('shaka.media.BufferingObserver');
+goog.require('shaka.media.ManifestParser');
+goog.require('shaka.media.PresentationTimeline');
+goog.require('shaka.test.FakeAbrManager');
+goog.require('shaka.test.FakeDrmEngine');
+goog.require('shaka.test.FakeManifestParser');
+goog.require('shaka.test.FakeNetworkingEngine');
+goog.require('shaka.test.FakePlayhead');
+goog.require('shaka.test.FakeStreamingEngine');
+goog.require('shaka.test.FakeTextDisplayer');
+goog.require('shaka.test.FakeVideo');
+goog.require('shaka.test.ManifestGenerator');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.ConfigUtils');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.Iterables');
+goog.require('shaka.util.ManifestParserUtils');
+goog.requireType('shaka.media.Playhead');
 
 describe('Player', () => {
   const ContentType = shaka.util.ManifestParserUtils.ContentType;
@@ -734,16 +757,37 @@ describe('Player', () => {
     it('does not pollute other advanced DRM configs', () => {
       player.configure('drm.advanced.foo', {});
       player.configure('drm.advanced.bar', {});
-      const fooConfig1 = player.getConfiguration().drm.advanced.foo;
-      const barConfig1 = player.getConfiguration().drm.advanced.bar;
+      const fooConfig1 = player.getConfiguration().drm.advanced['foo'];
+      const barConfig1 = player.getConfiguration().drm.advanced['bar'];
       expect(fooConfig1.distinctiveIdentifierRequired).toBe(false);
       expect(barConfig1.distinctiveIdentifierRequired).toBe(false);
 
       player.configure('drm.advanced.foo.distinctiveIdentifierRequired', true);
-      const fooConfig2 = player.getConfiguration().drm.advanced.foo;
-      const barConfig2 = player.getConfiguration().drm.advanced.bar;
+      const fooConfig2 = player.getConfiguration().drm.advanced['foo'];
+      const barConfig2 = player.getConfiguration().drm.advanced['bar'];
       expect(fooConfig2.distinctiveIdentifierRequired).toBe(true);
       expect(barConfig2.distinctiveIdentifierRequired).toBe(false);
+    });
+
+    it('sets default streaming configuration with low latency mode', () => {
+      player.configure({
+        streaming: {
+          lowLatencyMode: true,
+          rebufferingGoal: 1,
+          inaccurateManifestTolerance: 1,
+        },
+      });
+      expect(player.getConfiguration().streaming.rebufferingGoal).toBe(1);
+      expect(player.getConfiguration().streaming.inaccurateManifestTolerance)
+          .toBe(1);
+
+      // When low latency streaming gets enabled, rebufferingGoal will default
+      // to 0.01 if unless specified, and inaccurateManifestTolerance will
+      // default to 0 unless specified.
+      player.configure('streaming.lowLatencyMode', true);
+      expect(player.getConfiguration().streaming.rebufferingGoal).toBe(0.01);
+      expect(player.getConfiguration().streaming.inaccurateManifestTolerance)
+          .toBe(0);
     });
   });
 
@@ -1585,7 +1629,7 @@ describe('Player', () => {
       // choices are limited only by channel count and key status.
       for (const variant of manifest.variants) {
         const keyId = (variant.audio.id % 2) ? 'aaa' : 'bbb';
-        variant.audio.keyId = keyId;
+        variant.audio.keyIds = new Set([keyId]);
         variant.video.roles = [];
         variant.audio.roles = [];
       }
@@ -2867,8 +2911,11 @@ describe('Player', () => {
     });
 
     it('gets current wall clock time in UTC', () => {
+      playhead.getTime.and.returnValue(20);
+
       const liveTimeUtc = player.getPlayheadTimeAsDate();
-      expect(liveTimeUtc).toEqual(new Date(320000));
+      // (300 (presentation start time) + 20 (playhead time)) * 1000 (ms/sec)
+      expect(liveTimeUtc).toEqual(new Date(320 * 1000));
     });
   });
 

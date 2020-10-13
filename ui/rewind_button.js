@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,6 +7,8 @@
 
 goog.provide('shaka.ui.RewindButton');
 
+goog.require('shaka.ui.Constants');
+goog.require('shaka.ui.Controls');
 goog.require('shaka.ui.Element');
 goog.require('shaka.ui.Enums');
 goog.require('shaka.ui.Locales');
@@ -28,7 +31,7 @@ shaka.ui.RewindButton = class extends shaka.ui.Element {
 
     /** @private {!HTMLButtonElement} */
     this.button_ = shaka.util.Dom.createButton();
-    this.button_.classList.add('material-icons');
+    this.button_.classList.add('material-icons-round');
     this.button_.classList.add('shaka-rewind-button');
     this.button_.textContent =
       shaka.ui.Enums.MaterialDesignIcons.REWIND;

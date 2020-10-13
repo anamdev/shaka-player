@@ -1,15 +1,20 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.Uri');
+goog.require('shaka.Player');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.test.Waiter');
+goog.require('shaka.util.EventManager');
 
 // These tests are for testing Shaka Player's integration with
 // |HTMLMediaElement.src=|. These tests are to verify that all |shaka.Player|
 // public methods behaviour correctly when playing content video |src=|.
 describe('Player Src Equals', () => {
-  const Util = shaka.test.Util;
-  const waitForMovementOrFailOnTimeout = Util.waitForMovementOrFailOnTimeout;
-
   const SMALL_MP4_CONTENT_URI = '/base/test/test/assets/small.mp4';
 
   /** @type {!HTMLVideoElement} */
@@ -18,6 +23,8 @@ describe('Player Src Equals', () => {
   let player;
   /** @type {!shaka.util.EventManager} */
   let eventManager;
+  /** @type {shaka.test.Waiter} */
+  let waiter;
 
   beforeAll(() => {
     video = shaka.test.UiUtils.createVideoElement();
@@ -28,6 +35,7 @@ describe('Player Src Equals', () => {
     player = new shaka.Player();
     player.addEventListener('error', fail);
     eventManager = new shaka.util.EventManager();
+    waiter = new shaka.test.Waiter(eventManager);
   });
 
   afterEach(async () => {
@@ -101,7 +109,7 @@ describe('Player Src Equals', () => {
 
     // Start playback and wait for the playhead to move.
     video.play();
-    await waitForMovementOrFailOnTimeout(eventManager, video, /* timeout= */10);
+    await waiter.waitForMovementOrFailOnTimeout(video, /* timeout= */10);
 
     // Make sure the playhead is roughly where we expect it to be before
     // seeking.
@@ -111,7 +119,7 @@ describe('Player Src Equals', () => {
     // Trigger a seek and then wait for the seek to take effect.
     // This seek target is very close to the duration of the video.
     video.currentTime = 10;
-    await waitForMovementOrFailOnTimeout(eventManager, video, /* timeout= */10);
+    await waiter.waitForMovementOrFailOnTimeout(video, /* timeout= */10);
 
     // Make sure the playhead is roughly where we expect it to be after
     // seeking.
@@ -138,7 +146,7 @@ describe('Player Src Equals', () => {
 
     // For playback to begin so that we have some content buffered.
     video.play();
-    await waitForMovementOrFailOnTimeout(eventManager, video, /* timeout= */10);
+    await waiter.waitForMovementOrFailOnTimeout(video, /* timeout= */10);
 
     const buffered = player.getBufferedInfo();
 
@@ -162,7 +170,7 @@ describe('Player Src Equals', () => {
 
     // Let playback run for a little.
     video.play();
-    await waitForMovementOrFailOnTimeout(eventManager, video, /* timeout= */10);
+    await waiter.waitForMovementOrFailOnTimeout(video, /* timeout= */10);
 
     let videoRateChange = false;
     let playerRateChange = false;
@@ -237,6 +245,16 @@ describe('Player Src Equals', () => {
     }
   });
 
+  it('ignores extra text track on the video element', async () => {
+    // The extra text track with label "Shaka Player TextTrack" should not be
+    // listed.
+    video.addTextTrack('subtitles', /* label= */ shaka.Player.TextTrackLabel);
+
+    await loadWithSrcEquals(SMALL_MP4_CONTENT_URI, /* startTime= */ null);
+    expect(player.getTextTracks()).toEqual([]);
+  });
+
+
   // TODO: test HLS on platforms with native HLS
   it('returns no languages or roles for simple mp4 content', async () => {
     await loadWithSrcEquals(SMALL_MP4_CONTENT_URI, /* startTime= */ null);
@@ -259,45 +277,6 @@ describe('Player Src Equals', () => {
     expect(player.getTextLanguagesAndRoles()).toEqual([]);
   });
 
-  // TODO: test language selection w/ HLS on platforms with native HLS
-  // This test is disabled until then.
-  xit('cannot select language or role', async () => {
-    await loadWithSrcEquals(SMALL_MP4_CONTENT_URI, /* startTime= */ null);
-
-    const language = 'en';
-    const role = 'main';
-
-    player.selectAudioLanguage(language);
-    expect(player.getAudioLanguages()).toEqual([]);
-    expect(player.getAudioLanguagesAndRoles()).toEqual([]);
-
-    player.selectAudioLanguage(language, role);
-    expect(player.getAudioLanguages()).toEqual([]);
-    expect(player.getAudioLanguagesAndRoles()).toEqual([]);
-
-    player.selectTextLanguage(language);
-    expect(player.getTextLanguages()).toEqual([]);
-    expect(player.getTextLanguagesAndRoles()).toEqual([]);
-
-    player.selectTextLanguage(language, role);
-    expect(player.getTextLanguages()).toEqual([]);
-    expect(player.getTextLanguagesAndRoles()).toEqual([]);
-  });
-
-  // TODO: test text visibility w/ HLS on platforms with native HLS
-  // This test is disabled until then.
-  xit('persists the text visibility setting', async () => {
-    await loadWithSrcEquals(SMALL_MP4_CONTENT_URI, /* startTime= */ null);
-
-    expect(player.isTextTrackVisible()).toBe(false);
-
-    await player.setTextTrackVisibility(true);
-    expect(player.isTextTrackVisible()).toBe(true);
-
-    await player.setTextTrackVisibility(false);
-    expect(player.isTextTrackVisible()).toBe(false);
-  });
-
   // Even though we loaded content using |src=| we should still be able to get
   // the playhead position as normal.
   it('can get the playhead position', async () => {
@@ -308,7 +287,7 @@ describe('Player Src Equals', () => {
 
     // Start playback and wait. We should see the playhead move.
     video.play();
-    await waitForMovementOrFailOnTimeout(eventManager, video, /* timeout= */10);
+    await waiter.waitForMovementOrFailOnTimeout(video, /* timeout= */10);
     await shaka.test.Util.delay(1.5);
 
     // When checking if the playhead moved, check for less progress than time we
@@ -325,7 +304,7 @@ describe('Player Src Equals', () => {
     // Wait some time for playback to start so that we will have a load latency
     // value.
     video.play();
-    await waitForMovementOrFailOnTimeout(eventManager, video, /* timeout= */10);
+    await waiter.waitForMovementOrFailOnTimeout(video, /* timeout= */10);
 
     // Get the stats and check that some stats have been filled in.
     const stats = player.getStats();
@@ -335,17 +314,16 @@ describe('Player Src Equals', () => {
     expect(stats.drmTimeSeconds).toBeNaN(); // There's no DRM.
   });
 
-  // Because we have no manifest, we can't add text tracks.
-  it('cannot add text tracks', async () => {
+  it('plays with external text tracks', async () => {
     await loadWithSrcEquals(SMALL_MP4_CONTENT_URI, /* startTime= */ null);
 
-    expect(() => {
-      player.addTextTrack(
-          'test:need-a-uri-for-text',
-          'en-US',
-          'main',
-          'text/mp4');
-    }).toThrow();
+    const locationUri = new goog.Uri(location.href);
+    const partialUri = new goog.Uri('/base/test/test/assets/text-clip.vtt');
+    const absoluteUri = locationUri.resolve(partialUri);
+    const newTrack = player.addTextTrack(
+        absoluteUri.toString(), 'en', 'subtitles', 'text/vtt');
+
+    expect(newTrack).toBeTruthy();
   });
 
   // Since we are not in-charge of streaming, calling |retryStreaming| should
@@ -368,6 +346,9 @@ describe('Player Src Equals', () => {
    * @return {!Promise}
    */
   async function loadWithSrcEquals(contentUri, startTime) {
+    /** @type {!shaka.util.EventManager} */
+    const eventManager = new shaka.util.EventManager();
+
     const ready = new Promise((resolve) => {
       eventManager.listenOnce(video, 'loadeddata', resolve);
     });
@@ -378,5 +359,20 @@ describe('Player Src Equals', () => {
     // Wait until the media element is ready with content. Waiting until this
     // point ensures it is safe to interact with the media element.
     await ready;
+
+    // The initial seek is triggered about the same time this ready promise
+    // resolves.  Wait (with timeout) for movement, so that the initial-seek
+    // promise chain has time to resolve before we test our expectations.
+    if (startTime != null) {
+      const waiter = new shaka.test.Waiter(eventManager);
+      if (video.currentTime == 0) {
+        // A one-second timeout is too short for Chromecast, but a longer
+        // timeout doesn't hurt anyone.  This will always resolve as fast as
+        // playback can actually start.
+        await waiter.waitForMovementOrFailOnTimeout(video, 5);
+      }
+    }
+
+    eventManager.release();
   }
 });

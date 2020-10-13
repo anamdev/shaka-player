@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,6 +15,12 @@ var google = {};
 
 /** @const */
 google.ima = {};
+
+/** @const */
+google.ima.settings = {};
+
+/** @param {string} locale */
+google.ima.settings.setLocale = function(locale) {};
 
 
 /**
@@ -168,6 +175,11 @@ google.ima.AdPodInfo = class {
 /** @const */
 google.ima.ImaSdkSettings = class {
   /**
+   * @param {string} locale
+   */
+  setLocale(locale) {}
+
+  /**
    * @param {string} player
    */
   setPlayerType(player) {}
@@ -198,6 +210,18 @@ google.ima.AdEvent.Type = {
   COMPLETE: 'COMPLETE',
   ALL_ADS_COMPLETED: 'ALL_ADS_COMPLETED',
   SKIPPED: 'SKIPPED',
+  INTERACTION: 'INTERACTION',
+  LOG: 'LOG',
+  AD_BREAK_READY: 'AD_BREAK_READY',
+  AD_METADATA: 'AD_METADATA',
+  LINEAR_CHANGED: 'LINEAR_CHANGED',
+  LOADED: 'LOADED',
+  USER_CLOSE: 'USER_CLOSE',
+  DURATION_CHANGE: 'DURATION_CHANGE',
+  IMPRESSION: 'IMPRESSION',
+  AD_BUFFERING: 'AD_BUFFERING',
+  AD_PROGRESS: 'AD_PROGRESS',
+  CLICK: 'CLICK',
 };
 
 
@@ -256,14 +280,21 @@ google.ima.dai.api.StreamManager = class {
   /**
    * @param {HTMLMediaElement} videoElement
    * @param {HTMLElement=} adUiElement
+   * @param {google.ima.dai.api.UiSettings=} uiSettings
    */
-  constructor(videoElement, adUiElement = undefined) {}
+  constructor(videoElement, adUiElement = undefined, uiSettings = undefined) {}
 
   /** @param {number} streamTime */
   contentTimeForStreamTime(streamTime) {}
 
   /** @param {Object} metadata */
   onTimedMetadata(metadata) {}
+
+  /**
+   * @param {?Element} clickElement the element used as the ad click through.
+   */
+  setClickElement(clickElement) {}
+
 
   /** @param {number} streamTime */
   previousCuePointForStreamTime(streamTime) {}
@@ -286,14 +317,30 @@ google.ima.dai.api.StreamManager = class {
   /** @param {number} contentTime */
   streamTimeForContentTime(contentTime) {}
 
-  /** @override */
-  addEventListener() {}
+  /**
+   * @param {string|Array} type
+   * @param {Function|Object} handler
+   * @param {boolean|!AddEventListenerOptions=} capture
+   * @param {Object=} handlerScope
+   * @override
+   */
+  addEventListener(type, handler, capture, handlerScope) {}
 
   /** @override */
   removeEventListener() {}
 
   /** @override */
   dispatchEvent() {}
+};
+
+
+/** @const */
+google.ima.dai.api.UiSettings = class {
+  /** @return {number} */
+  getLocale() {}
+
+  /** @param {string} locale */
+  setLocale(locale) {}
 };
 
 
@@ -352,11 +399,15 @@ google.ima.dai.api.AdProgressData.prototype.duration;
 
 
 /** @type {number} */
-google.ima.dai.api.AdProgressData.prototype.currentTime;
+google.ima.dai.api.AdProgressData.prototype.url;
 
 
 /** @type {number} */
-google.ima.dai.api.AdProgressData.prototype.url;
+google.ima.dai.api.AdProgressData.prototype.totalAds;
+
+
+/** @type {number} */
+google.ima.dai.api.AdProgressData.prototype.adPosition;
 
 
 /** @const */
@@ -373,6 +424,18 @@ google.ima.dai.api.StreamData.prototype.url;
 
 /** @type {!Array.<!google.ima.dai.api.CuePoint>} */
 google.ima.dai.api.StreamData.prototype.cuepoints;
+
+
+/** @type {string} */
+google.ima.dai.api.StreamData.prototype.errorMessage;
+
+
+/** @type {string} */
+google.ima.dai.api.StreamData.prototype.streamId;
+
+
+/** @type {?Array<{url: string, language: string, language_name: string}>} */
+google.ima.dai.api.StreamData.prototype.subtitles;
 
 
 /** @const */
@@ -403,6 +466,10 @@ google.ima.dai.api.StreamRequest.prototype.authToken;
 
 /** @type {string} */
 google.ima.dai.api.StreamRequest.prototype.streamActivityMonitorId;
+
+
+/** @type {?string} */
+google.ima.dai.api.StreamRequest.prototype.format;
 
 
 /** @const */

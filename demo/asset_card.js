@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -258,7 +259,7 @@ shakaDemo.AssetCard = class {
       attachPoint.classList.add('asset-card-corner-button');
       const icon = document.createElement('i');
       icon.textContent = iconText;
-      icon.classList.add('material-icons');
+      icon.classList.add('material-icons-round');
       button.appendChild(icon);
     };
 
@@ -364,16 +365,16 @@ shakaDemo.AssetCard = class {
     if (this.asset_.storedProgress < 1) {
       this.progressCircle_.classList.remove('hidden');
       for (const button of this.actions_.childNodes) {
-        goog.asserts.assert(
-            button instanceof HTMLButtonElement, 'Wrong node type!');
-        button.disabled = true;
+        if (button instanceof HTMLButtonElement) {
+          button.disabled = true;
+        }
       }
     } else {
       this.progressCircle_.classList.add('hidden');
       for (const button of this.actions_.childNodes) {
-        goog.asserts.assert(
-            button instanceof HTMLButtonElement, 'Wrong node type!');
-        button.disabled = false;
+        if (button instanceof HTMLButtonElement) {
+          button.disabled = false;
+        }
       }
     }
     this.styleProgressCircle_(this.asset_.storedProgress);

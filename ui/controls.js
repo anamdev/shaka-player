@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,7 +8,14 @@
 goog.provide('shaka.ui.Controls');
 goog.provide('shaka.ui.ControlsPanel');
 
+goog.require('goog.asserts');
+goog.require('shaka.Deprecate');
+goog.require('shaka.ads.AdManager');
+goog.require('shaka.cast.CastProxy');
 goog.require('shaka.log');
+goog.require('shaka.ui.AdCounter');
+goog.require('shaka.ui.AdPosition');
+goog.require('shaka.ui.BigPlayButton');
 goog.require('shaka.ui.Locales');
 goog.require('shaka.ui.Localization');
 goog.require('shaka.ui.SeekBar');
@@ -16,7 +24,9 @@ goog.require('shaka.util.Dom');
 goog.require('shaka.util.EventManager');
 goog.require('shaka.util.FakeEvent');
 goog.require('shaka.util.FakeEventTarget');
+goog.require('shaka.util.IDestroyable');
 goog.require('shaka.util.Timer');
+goog.requireType('shaka.Player');
 
 
 /**
@@ -65,16 +75,16 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
     /** @private {shaka.extern.IAdManager} */
     this.adManager_ = this.player_.getAdManager();
 
-    /** @private {shaka.extern.IAd} */
+    /** @private {?shaka.extern.IAd} */
     this.ad_ = null;
 
-    /** @private {shaka.ui.SeekBar} */
+    /** @private {?shaka.ui.SeekBar} */
     this.seekBar_ = null;
 
     /** @private {boolean} */
     this.isSeeking_ = false;
 
-    /** @private {!Array.<!Element>} */
+    /** @private {!Array.<!HTMLElement>} */
     this.settingsMenus_ = [];
 
     /**
@@ -122,13 +132,8 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
      * @private {shaka.util.Timer}
      */
     this.hideSettingsMenusTimer_ = new shaka.util.Timer(() => {
-      /** @type {function(!HTMLElement)} */
-      const hide = (control) => {
-        shaka.ui.Utils.setDisplay(control, /* visible= */ false);
-      };
-
       for (const menu of this.settingsMenus_) {
-        hide(/** @type {!HTMLElement} */ (menu));
+        shaka.ui.Utils.setDisplay(menu, /* visible= */ false);
       }
     });
 
@@ -143,7 +148,7 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
      */
     this.timeAndSeekRangeTimer_ = new shaka.util.Timer(() => {
       // Suppress timer-based updates if the controls are hidden.
-      if (this.isOpaque_()) {
+      if (this.isOpaque()) {
         this.updateTimeAndSeekRange_();
       }
     });
@@ -179,6 +184,12 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
 
     // Start this timer after we are finished initializing everything,
     this.timeAndSeekRangeTimer_.tickEvery(/* seconds= */ 0.125);
+
+    this.eventManager_.listen(this.localization_,
+        shaka.ui.Localization.LOCALE_CHANGED, (e) => {
+          const locale = e['locales'][0];
+          this.adManager_.setLocale(locale);
+        });
   }
 
   /**
@@ -215,6 +226,11 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
     // or player.  This makes sure those destructions will not trigger event
     // listeners in the UI which would then invoke the cast proxy or player.
     this.releaseChildElements_();
+
+    if (this.controlsContainer_) {
+      this.videoContainer_.removeChild(this.controlsContainer_);
+      this.controlsContainer_ = null;
+    }
 
     if (this.castProxy_) {
       await this.castProxy_.destroy();
@@ -507,7 +523,17 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
    * @export
    */
   getControlsContainer() {
+    goog.asserts.assert(
+        this.controlsContainer_, 'No controls container after destruction!');
     return this.controlsContainer_;
+  }
+
+  /**
+   * @return {!HTMLElement}
+   * @export
+   */
+  getServerSideAdContainer() {
+    return this.daiAdContainer_;
   }
 
   /**
@@ -576,6 +602,9 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
   /** @export */
   async toggleFullScreen() {
     if (document.fullscreenElement) {
+      if (screen.orientation) {
+        screen.orientation.unlock();
+      }
       await document.exitFullscreen();
     } else {
       // If we are in PiP mode, leave PiP mode first.
@@ -584,6 +613,16 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
           await document.exitPictureInPicture();
         }
         await this.videoContainer_.requestFullscreen({navigationUI: 'hide'});
+        if (this.config_.forceLandscapeOnFullscreen && screen.orientation) {
+          try {
+            // Locking to 'landscape' should let it be either
+            // 'landscape-primary' or 'landscape-secondary' as appropriate.
+            await screen.orientation.lock('landscape');
+          } catch (error) {
+            // If screen.orientation.lock does not work on a device, it will
+            // be rejected with an error. Suppress that error.
+          }
+        }
       } catch (error) {
         this.dispatchEvent(new shaka.util.FakeEvent('error', {
           detail: error,
@@ -653,7 +692,7 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
     this.videoContainer_.classList.add('shaka-video-container');
     this.localVideo_.classList.add('shaka-video');
 
-    this.addSkimContainer_();
+    this.addScrimContainer_();
 
     if (this.config_.addBigPlayButton) {
       this.addPlayButton_();
@@ -662,6 +701,8 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
     if (!this.spinnerContainer_) {
       this.addBufferingSpinner_();
     }
+
+    this.addDaiAdContainer_();
 
     this.addControlsButtonPanel_();
 
@@ -685,7 +726,7 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
 
   /** @private */
   addControlsContainer_() {
-    /** @private {!HTMLElement} */
+    /** @private {HTMLElement} */
     this.controlsContainer_ = shaka.util.Dom.createHTMLElement('div');
     this.controlsContainer_.classList.add('shaka-controls-container');
     this.videoContainer_.appendChild(this.controlsContainer_);
@@ -700,6 +741,12 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
 
     this.eventManager_.listen(this.controlsContainer_, 'click', () => {
       this.onContainerClick_();
+    });
+
+    this.eventManager_.listen(this.controlsContainer_, 'dblclick', () => {
+      if (this.config_.doubleClickForFullscreen) {
+        this.toggleFullScreen();
+      }
     });
   }
 
@@ -716,12 +763,12 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
   }
 
   /** @private */
-  addSkimContainer_() {
+  addScrimContainer_() {
     // This is the container that gets styled by CSS to have the
-    // black gradient skim at the end of the controls.
-    const skimContainer = shaka.util.Dom.createHTMLElement('div');
-    skimContainer.classList.add('shaka-skim-container');
-    this.controlsContainer_.appendChild(skimContainer);
+    // black gradient scrim at the end of the controls.
+    const scrimContainer = shaka.util.Dom.createHTMLElement('div');
+    scrimContainer.classList.add('shaka-scrim-container');
+    this.controlsContainer_.appendChild(scrimContainer);
   }
 
   /** @private */
@@ -805,12 +852,42 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
       if (shaka.ui.ControlsPanel.elementNamesToFactories_.get(name)) {
         const factory =
             shaka.ui.ControlsPanel.elementNamesToFactories_.get(name);
-        this.elements_.push(factory.create(this.controlsButtonPanel_, this));
+        const element = factory.create(this.controlsButtonPanel_, this);
+
+        if (typeof element.release != 'function') {
+          shaka.Deprecate.deprecateFeature(4,
+              'shaka.extern.IUIElement',
+              'Please update UI elements to have a release() method.');
+
+          // This cast works around compiler strictness about the IUIElement
+          // type being "@struct" (as ES6 classes are by default).
+          const moddableElement = /** @type {Object} */(element);
+          moddableElement['release'] = () => {
+            if (moddableElement['destroy']) {
+              moddableElement['destroy']();
+            }
+          };
+        }
+
+        this.elements_.push(element);
       } else {
         shaka.log.alwaysWarn('Unrecognized control panel element requested:',
             name);
       }
     }
+  }
+
+
+  /**
+   * Adds a container for server side ad UI with IMA SDK.
+   *
+   * @private
+   */
+  addDaiAdContainer_() {
+    /** @private {!HTMLElement} */
+    this.daiAdContainer_ = shaka.util.Dom.createHTMLElement('div');
+    this.daiAdContainer_.classList.add('shaka-server-side-ad-container');
+    this.controlsContainer_.appendChild(this.daiAdContainer_);
   }
 
   /**
@@ -835,12 +912,6 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
 
     // Listen for click events to dismiss the settings menus.
     this.eventManager_.listen(window, 'click', () => this.hideSettingsMenus());
-
-    this.eventManager_.listen(this.controlsContainer_, 'dblclick', () => {
-      if (this.config_.doubleClickForFullscreen) {
-        this.toggleFullScreen();
-      }
-    });
 
     this.eventManager_.listen(this.video_, 'play', () => {
       this.onPlayStateChange_();
@@ -969,7 +1040,7 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
     // open.
     this.hideSettingsMenusTimer_.stop();
 
-    if (!this.isOpaque_()) {
+    if (!this.isOpaque()) {
       // Only update the time and seek range on mouse movement if it's the very
       // first movement and we're about to show the controls.  Otherwise, the
       // seek bar will be updated much more rapidly during mouse movement.  Do
@@ -1024,6 +1095,14 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
    * @private
    */
   isHovered_() {
+    if (!window.matchMedia('hover: hover').matches) {
+      // This is primarily a touch-screen device, so the :hover query below
+      // doesn't make sense.  In spite of this, the :hover query on an element
+      // can still return true on such a device after a touch ends.
+      // See https://bit.ly/34dBORX for details.
+      return false;
+    }
+
     return this.showOnHoverControls_.some((element) => {
       return element.matches(':hover');
     });
@@ -1066,7 +1145,7 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
       return;
     }
 
-    if (this.isOpaque_()) {
+    if (this.isOpaque()) {
       this.lastTouchEventTime_ = Date.now();
       // The controls are showing.
       // Let this event continue and become a click.
@@ -1197,9 +1276,9 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
 
   /**
    * @return {boolean}
-   * @private
+   * @export
    */
-  isOpaque_() {
+  isOpaque() {
     if (!this.enabled_) {
       return false;
     }
@@ -1216,7 +1295,7 @@ shaka.ui.Controls = class extends shaka.util.FakeEventTarget {
    */
   seek_(currentTime, event) {
     this.video_.currentTime = currentTime;
-    if (this.isOpaque_()) {
+    if (this.isOpaque()) {
       // Only update the time and seek range if it's visible.
       this.updateTimeAndSeekRange_();
     }

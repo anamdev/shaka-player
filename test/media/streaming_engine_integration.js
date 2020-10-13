@@ -1,7 +1,33 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.media.InitSegmentReference');
+goog.require('shaka.media.MediaSourceEngine');
+goog.require('shaka.media.MediaSourcePlayhead');
+goog.require('shaka.media.SegmentIndex');
+goog.require('shaka.media.SegmentReference');
+goog.require('shaka.media.StreamingEngine');
+goog.require('shaka.net.NetworkingEngine');
+goog.require('shaka.test.FakeClosedCaptionParser');
+goog.require('shaka.test.FakeTextDisplayer');
+goog.require('shaka.test.Mp4LiveStreamGenerator');
+goog.require('shaka.test.Mp4VodStreamGenerator');
+goog.require('shaka.test.StreamingEngineUtil');
+goog.require('shaka.test.TestScheme');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.test.Waiter');
+goog.require('shaka.util.EventManager');
+goog.require('shaka.util.ManifestParserUtils');
+goog.require('shaka.util.Platform');
+goog.require('shaka.util.PlayerConfiguration');
+goog.requireType('shaka.media.Playhead');
+goog.requireType('shaka.media.PresentationTimeline');
+goog.requireType('shaka.test.FakeNetworkingEngine');
+goog.requireType('shaka.test.FakePresentationTimeline');
 
 describe('StreamingEngine', () => {
   const ContentType = shaka.util.ManifestParserUtils.ContentType;
@@ -17,6 +43,9 @@ describe('StreamingEngine', () => {
 
   /** @type {!HTMLVideoElement} */
   let video;
+  /** @type {{start: number, end: number}} */
+  let segmentAvailability;
+  /** @type {!shaka.test.FakePresentationTimeline} */
   let timeline;
 
   /** @type {!shaka.media.Playhead} */
@@ -24,6 +53,7 @@ describe('StreamingEngine', () => {
   /** @type {shaka.extern.StreamingConfiguration} */
   let config;
 
+  /** @type {!shaka.test.FakeNetworkingEngine} */
   let netEngine;
   /** @type {!shaka.media.MediaSourceEngine} */
   let mediaSourceEngine;
@@ -83,9 +113,13 @@ describe('StreamingEngine', () => {
     await createVodStreamGenerator(metadata.audio, ContentType.AUDIO);
     await createVodStreamGenerator(metadata.video, ContentType.VIDEO);
 
+    segmentAvailability = {
+      start: 0,
+      end: 60,
+    };
+
     timeline = shaka.test.StreamingEngineUtil.createFakePresentationTimeline(
-        /* segmentAvailabilityStart= */ 0,
-        /* segmentAvailabilityEnd= */ 60,
+        segmentAvailability,
         /* presentationDuration= */ 60,
         /* maxSegmentDuration= */ metadata.video.segmentDuration,
         /* isLive= */ false);
@@ -121,9 +155,13 @@ describe('StreamingEngine', () => {
     // The generator's AST is set to 295 seconds in the past, so the live-edge
     // is at 295 - 10 seconds.
     // -10 to account for maxSegmentDuration.
+    segmentAvailability = {
+      start: 275 - 10,
+      end: 295 - 10,
+    };
+
     timeline = shaka.test.StreamingEngineUtil.createFakePresentationTimeline(
-        /* segmentAvailabilityStart= */ 275 - 10,
-        /* segmentAvailabilityEnd= */ 295 - 10,
+        segmentAvailability,
         /* presentationDuration= */ Infinity,
         /* maxSegmentDuration= */ metadata.video.segmentDuration,
         /* isLive= */ true);
@@ -187,9 +225,9 @@ describe('StreamingEngine', () => {
         (type, periodNumber, position) => {
           const wallClockTime = Date.now() / 1000;
           const segment = generators[type].getSegment(position, wallClockTime);
-          expect(segment).not.toBeNull();
           return segment;
-        });
+        },
+        /* delays= */{audio: 0, video: 0, text: 0});
   }
 
   function setupPlayhead() {
@@ -252,6 +290,13 @@ describe('StreamingEngine', () => {
     });
 
     it('plays at high playback rates', async () => {
+      // Experimentally, we find that playback rates above 2x in this test seem
+      // to cause decoder failures on Tizen 3.  This is out of our control, and
+      // seems to be a Tizen bug, so this test is skipped on Tizen completely.
+      if (shaka.util.Platform.isTizen()) {
+        pending('High playbackRate tests cause decoder errors on Tizen 3.');
+      }
+
       // Let's go!
       streamingEngine.switchVariant(variant);
       await streamingEngine.start();
@@ -302,8 +347,8 @@ describe('StreamingEngine', () => {
     beforeEach(async () => {
       await setupLive();
       slideSegmentAvailabilityWindow = window.setInterval(() => {
-        timeline.segmentAvailabilityStart++;
-        timeline.segmentAvailabilityEnd++;
+        segmentAvailability.start++;
+        segmentAvailability.end++;
       }, 1000);
     });
 
@@ -337,7 +382,7 @@ describe('StreamingEngine', () => {
 
       // Seek outside the availability window right away. The playhead
       // should adjust the video's current time.
-      video.currentTime = timeline.segmentAvailabilityEnd + 120;
+      video.currentTime = segmentAvailability.end + 120;
       video.play();
 
       // Wait until the repositioning is complete so we don't
@@ -362,7 +407,7 @@ describe('StreamingEngine', () => {
 
       // Seek outside the availability window right away. The playhead
       // should adjust the video's current time.
-      video.currentTime = timeline.segmentAvailabilityStart - 120;
+      video.currentTime = segmentAvailability.start - 120;
       expect(video.currentTime).toBeGreaterThan(0);
 
       video.play();
@@ -498,10 +543,14 @@ describe('StreamingEngine', () => {
       await createVodStreamGenerator(metadata.audio, ContentType.AUDIO);
       await createVodStreamGenerator(metadata.video, ContentType.VIDEO);
 
+      segmentAvailability = {
+        start: 0,
+        end: 30,
+      };
+
       timeline =
           shaka.test.StreamingEngineUtil.createFakePresentationTimeline(
-              /* segmentAvailabilityStart= */ 0,
-              /* segmentAvailabilityEnd= */ 30,
+              segmentAvailability,
               /* presentationDuration= */ 30,
               /* maxSegmentDuration= */ metadata.video.segmentDuration,
               /* isLive= */ false);

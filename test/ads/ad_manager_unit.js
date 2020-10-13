@@ -1,7 +1,14 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.Player');
+goog.require('shaka.ads.AdManager');
+goog.require('shaka.test.FakeVideo');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.Error');
 
 describe('Ad manager', () => {
   /** @type {!shaka.test.FakeVideo} */

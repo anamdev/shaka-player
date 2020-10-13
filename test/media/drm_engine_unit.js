@@ -1,7 +1,24 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.log');
+goog.require('shaka.media.DrmEngine');
+goog.require('shaka.net.DataUriPlugin');
+goog.require('shaka.net.NetworkingEngine');
+goog.require('shaka.test.FakeNetworkingEngine');
+goog.require('shaka.test.FakeVideo');
+goog.require('shaka.test.ManifestGenerator');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.AbortableOperation');
+goog.require('shaka.util.BufferUtils');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.PlayerConfiguration');
+goog.require('shaka.util.PublicPromise');
+goog.require('shaka.util.StringUtils');
+goog.require('shaka.util.Uint8ArrayUtils');
 
 describe('DrmEngine', () => {
   const Util = shaka.test.Util;
@@ -259,6 +276,7 @@ describe('DrmEngine', () => {
       expect(drmEngine.initialized()).toBe(true);
       expect(drmEngine.willSupport('audio/webm')).toBeTruthy();
       expect(drmEngine.willSupport('video/mp4; codecs="fake"')).toBeTruthy();
+      expect(drmEngine.willSupport('video/mp4; codecs="FAKE"')).toBeTruthy();
 
       // Because DrmEngine will err on being too accepting, make sure it will
       // reject something. However, we can only check that it is actually
@@ -651,7 +669,10 @@ describe('DrmEngine', () => {
       config.advanced['drm.abc'] = createAdvancedConfig(cert);
       drmEngine.configure(config);
 
-      await initAndAttach();
+      const variants = manifest.variants;
+      await drmEngine.initForPlayback(variants, manifest.offlineSessionIds);
+
+      // Should be set merely after init, without waiting for attach.
       expect(mockMediaKeys.setServerCertificate).toHaveBeenCalledWith(cert);
     });
 
@@ -727,6 +748,25 @@ describe('DrmEngine', () => {
           .toHaveBeenCalledWith('cenc', initData1);
     });
 
+    // https://github.com/google/shaka-player/issues/2754
+    it('ignores duplicate init data from newInitData', async () => {
+      /** @type {!Uint8Array} */
+      const initData = new Uint8Array(1);
+
+      tweakDrmInfos((drmInfos) => {
+        drmInfos[0].initData =
+            [{initData: initData, initDataType: 'cenc', keyId: 'abc'}];
+      });
+
+      await drmEngine.initForPlayback(
+          manifest.variants, manifest.offlineSessionIds);
+      drmEngine.newInitData('cenc', initData);
+      await drmEngine.attach(mockVideo);
+
+      expect(mockMediaKeys.createSession).toHaveBeenCalledTimes(1);
+      expect(session1.generateRequest).toHaveBeenCalledWith('cenc', initData);
+    });
+
     it('uses clearKeys config to override DrmInfo', async () => {
       tweakDrmInfos((drmInfos) => {
         drmInfos[0].keySystem = 'com.fake.NOT.clearkey';
@@ -758,8 +798,9 @@ describe('DrmEngine', () => {
       expect(session.generateRequest)
           .toHaveBeenCalledWith('keyids', jasmine.any(Uint8Array));
 
-      const initData = JSON.parse(shaka.util.StringUtils.fromUTF8(
-          session.generateRequest.calls.argsFor(0)[1]));
+      const initData = /** @type {{kids: !Array.<string>}} */(JSON.parse(
+          shaka.util.StringUtils.fromUTF8(
+              session.generateRequest.calls.argsFor(0)[1])));
       const keyId1 = Uint8ArrayUtils.toHex(
           Uint8ArrayUtils.fromBase64(initData.kids[0]));
       const keyId2 = Uint8ArrayUtils.toHex(

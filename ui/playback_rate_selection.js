@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,11 +7,15 @@
 
 goog.provide('shaka.ui.PlaybackRateSelection');
 
+goog.require('shaka.ui.Constants');
 goog.require('shaka.ui.Enums');
 goog.require('shaka.ui.Locales');
 goog.require('shaka.ui.Localization');
 goog.require('shaka.ui.OverflowMenu');
 goog.require('shaka.ui.SettingsMenu');
+goog.require('shaka.ui.Utils');
+goog.require('shaka.util.Dom');
+goog.requireType('shaka.ui.Controls');
 
 /**
  * @extends {shaka.ui.SettingsMenu}
@@ -56,6 +61,7 @@ shaka.ui.PlaybackRateSelection = class extends shaka.ui.SettingsMenu {
     // Set up all the strings in the user's preferred language.
     this.updateLocalizedStrings_();
     this.addPlaybackRates_();
+    this.updatePlaybackRateSelection_(this.player.getPlaybackRate());
   }
 
   /**
@@ -81,7 +87,7 @@ shaka.ui.PlaybackRateSelection = class extends shaka.ui.SettingsMenu {
   updatePlaybackRateSelection_(rate) {
     // Remove the old checkmark icon and related tags and classes if it exists.
     const checkmarkIcon = shaka.ui.Utils.getDescendantIfExists(
-        this.menu, 'material-icons shaka-chosen-item');
+        this.menu, 'material-icons-round shaka-chosen-item');
     if (checkmarkIcon) {
       const previouslySelectedButton = checkmarkIcon.parentElement;
       previouslySelectedButton.removeAttribute('aria-selected');

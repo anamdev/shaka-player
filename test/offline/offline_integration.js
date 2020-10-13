@@ -1,7 +1,17 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.Player');
+goog.require('shaka.offline.Storage');
+goog.require('shaka.test.TestScheme');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.test.Waiter');
+goog.require('shaka.util.EventManager');
 
 /** @return {boolean} */
 const supportsStorage = () => shaka.offline.Storage.support();
@@ -16,6 +26,8 @@ filterDescribe('Offline', supportsStorage, () => {
   let video;
   /** @type {!shaka.util.EventManager} */
   let eventManager;
+  /** @type {shaka.test.Waiter} */
+  let waiter;
 
   beforeAll(() => {
     video = shaka.test.UiUtils.createVideoElement();
@@ -31,6 +43,7 @@ filterDescribe('Offline', supportsStorage, () => {
     player.addEventListener('error', fail);
 
     eventManager = new shaka.util.EventManager();
+    waiter = new shaka.test.Waiter(eventManager);
 
     // Make sure we are starting with a blank slate.
     await shaka.offline.Storage.deleteAll();
@@ -58,9 +71,9 @@ filterDescribe('Offline', supportsStorage, () => {
 
     const contentUri = content.offlineUri;
     goog.asserts.assert(
-        contentUri, 'Stored content should have an offline uri.');
+        contentUri != null, 'Stored content should have an offline uri.');
 
-    await player.load(content.offlineUri);
+    await player.load(contentUri);
 
     video.play();
     await playTo(/* end= */ 3, /* timeout= */ 10);
@@ -143,7 +156,7 @@ filterDescribe('Offline', supportsStorage, () => {
    * @return {!Promise}
    */
   async function playTo(endSeconds, timeoutSeconds) {
-    await shaka.test.Util.waitUntilPlayheadReaches(
-        eventManager, video, endSeconds, timeoutSeconds);
+    await waiter.waitUntilPlayheadReachesOrFailOnTimeout(
+        video, endSeconds, timeoutSeconds);
   }
 });

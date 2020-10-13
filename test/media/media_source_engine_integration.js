@@ -1,7 +1,15 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.media.ClosedCaptionParser');
+goog.require('shaka.media.MediaSourceEngine');
+goog.require('shaka.test.FakeTextDisplayer');
+goog.require('shaka.test.TestScheme');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.util.ManifestParserUtils');
 
 describe('MediaSourceEngine', () => {
   const ContentType = shaka.util.ManifestParserUtils.ContentType;
@@ -34,15 +42,11 @@ describe('MediaSourceEngine', () => {
     metadata = shaka.test.TestScheme.DATA['sintel'];
     generators = shaka.test.TestScheme.GENERATORS['sintel'];
 
-    goog.asserts.assert(
-        shaka.media.MuxJSClosedCaptionParser.isSupported(),
-        'Where is MuxJS?');
-
     textDisplayer = new shaka.test.FakeTextDisplayer();
 
     mediaSourceEngine = new shaka.media.MediaSourceEngine(
         video,
-        new shaka.media.MuxJSClosedCaptionParser(),
+        new shaka.media.ClosedCaptionParser(),
         textDisplayer);
 
     mediaSource = /** @type {?} */(mediaSourceEngine)['mediaSource_'];

@@ -119,6 +119,27 @@ buffering settings) while some will not have any effect until the next call to
 `load()` (such as DRM settings, manifest settings, and language settings).
 
 
+#### Low latency streaming
+
+With `.streaming.lowLatencyMode` set to true,
+`.streaming.inaccurateManifestTolerance` is set to 0 by default, and
+`.streaming.rebufferingGoal` is set to 0.01 by default.
+
+To customize the values of inaccurateManifestTolerance and rebufferingGoal
+with low latency mode, you can set the fields in the same or subsequent
+call to configure().
+```js
+player.configure({
+  streaming: {
+    lowLatencyMode: true,
+    inaccurateManifestTolerance: 0,
+    rebufferingGoal: 0.01,
+  }
+});
+
+```
+
+
 #### Detailed API Docs
 
 For more detail on individual configuration options, please see the API docs for

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
- Copyright 2016 Google Inc.
+ Copyright 2016 Google LLC
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -50,10 +50,13 @@
     <script defer src="../node_modules/tippy.js/umd/index.min.js"></script>
     <!-- Improved PWA capability on mobile Safari is enabled by loading pwacompat: -->
     <script defer src="../node_modules/pwacompat/pwacompat.min.js"></script>
+    <!-- TextDecoder polyfill, required for IE and legacy Edge. -->
+    <script defer src="../node_modules/fastestsmallesttextencoderdecoder/EncoderDecoderTogether.min.js"></script>
+
     <!-- Include IMA SDK to enable client-side ad insertion: -->
-    <script type="text/javascript" src="//imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
+    <script type="text/javascript" src="https://imasdk.googleapis.com/js/sdkloader/ima3.js"></script>
     <!-- Include IMA DAI SDK to enable server-side ad insertion: -->
-    <script type="text/javascript" src="//imasdk.googleapis.com/js/sdkloader/ima3_dai.js"></script>
+    <script type="text/javascript" src="https://imasdk.googleapis.com/js/sdkloader/ima3_dai.js"></script>
 
 
     <script>
@@ -71,7 +74,7 @@ COMPILED_DEBUG_JS = [
 ];
 UNCOMPILED_JS = [
   // Bootstrap the Shaka Player library through the Closure library.
-  '../third_party/closure/goog/base.js',
+  '../node_modules/google-closure-library/closure/goog/base.js',
   '../dist/deps.js',
   // This is required for goog.asserts.
   '../lib/debug/asserts.js',
@@ -114,7 +117,7 @@ UNCOMPILED_JS = [
         <div id="hamburger-menu-title" class="mdl-layout-title">
           <div localized-string="CONFIG"></div>
           <div class="mdl-layout-spacer"></div>
-          <button id="drawer-close-button" class="mdl-button mdl-js-button mdl-button--icon should-disable-on-fail"><i class="material-icons">close</i></button>
+          <button id="drawer-close-button" class="mdl-button mdl-js-button mdl-button--icon should-disable-on-fail"><i class="material-icons-round">close</i></button>
         </div>
         <nav class="mdl-navigation" id="hamburger-menu-contents">
         </nav>
@@ -125,7 +128,7 @@ UNCOMPILED_JS = [
       </div>
       <main class="mdl-layout__content" id="main-div">
         <div id="video-bar" class="hidden">
-          <div data-shaka-player-container data-shaka-player-cast-receiver-id="07AEE832" class="video-container">
+          <div data-shaka-player-container data-shaka-player-cast-receiver-id="930DEB06" class="video-container">
             <video data-shaka-player autoplay playsinline id="video"></video>
           </div>
         </div>

@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,12 +7,15 @@
 
 goog.provide('shaka.ui.LoopButton');
 
+goog.require('shaka.ui.Constants');
 goog.require('shaka.ui.Element');
+goog.require('shaka.ui.Enums');
 goog.require('shaka.ui.Locales');
 goog.require('shaka.ui.Localization');
 goog.require('shaka.ui.OverflowMenu');
 goog.require('shaka.util.Dom');
 goog.require('shaka.util.Timer');
+goog.requireType('shaka.ui.Controls');
 
 
 /**
@@ -34,7 +38,7 @@ shaka.ui.LoopButton = class extends shaka.ui.Element {
 
     /** @private {!HTMLElement} */
     this.icon_ = shaka.util.Dom.createHTMLElement('i');
-    this.icon_.classList.add('material-icons');
+    this.icon_.classList.add('material-icons-round');
     this.icon_.textContent = shaka.ui.Enums.MaterialDesignIcons.LOOP;
     this.button_.appendChild(this.icon_);
 

@@ -1,7 +1,17 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.test.Dash');
+goog.require('shaka.test.FakeNetworkingEngine');
+goog.require('shaka.test.ManifestParser');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.PlayerConfiguration');
+goog.requireType('shaka.dash.DashParser');
 
 describe('DashParser SegmentTemplate', () => {
   const Dash = shaka.test.Dash;
@@ -36,10 +46,12 @@ describe('DashParser SegmentTemplate', () => {
 
     playerInterface = {
       networkingEngine: fakeNetEngine,
-      filter: (manifest) => {},
+      filter: (manifest) => Promise.resolve(),
+      makeTextStreamsForClosedCaptions: (manifest) => {},
       onTimelineRegionAdded: fail,  // Should not have any EventStream elements.
       onEvent: fail,
       onError: fail,
+      isLowLatencyMode: () => false,
     };
   });
 
@@ -99,10 +111,11 @@ describe('DashParser SegmentTemplate', () => {
           's2.mp4', 50, 60, baseUri);
       expectedRef2.timestampOffset = -10;
 
-      const pos1 = stream.segmentIndex.find(45);
-      const pos2 = stream.segmentIndex.find(55);
-      expect(stream.segmentIndex.get(pos1)).toEqual(expectedRef1);
-      expect(stream.segmentIndex.get(pos2)).toEqual(expectedRef2);
+      const iterator = stream.segmentIndex[Symbol.iterator]();
+      const ref1 = iterator.seek(45);
+      const ref2 = iterator.seek(55);
+      expect(ref1).toEqual(expectedRef1);
+      expect(ref2).toEqual(expectedRef2);
     });
 
     it('handles segments larger than the period', async () => {
@@ -126,6 +139,44 @@ describe('DashParser SegmentTemplate', () => {
       fakeNetEngine.setResponseText('dummy://foo', source);
       const manifest = await parser.start('dummy://foo', playerInterface);
       expect(manifest.presentationTimeline.getSeekRangeStart()).toBe(30);
+    });
+
+    it('limits segment count for Live', async () => {
+      const source = Dash.makeSimpleManifestText([
+        '<SegmentTemplate media="s$Number$.mp4" duration="1" />',
+      ]);
+
+      const config = shaka.util.PlayerConfiguration.createDefault().manifest;
+      config.dash.initialSegmentLimit = 100;
+      parser.configure(config);
+
+      fakeNetEngine.setResponseText('dummy://foo', source);
+      const manifest = await parser.start('dummy://foo', playerInterface);
+      const stream = manifest.variants[0].video;
+      await stream.createSegmentIndex();
+      goog.asserts.assert(stream.segmentIndex, 'Should have created index');
+
+      const segments = Array.from(stream.segmentIndex);
+      expect(segments.length).toBe(config.dash.initialSegmentLimit);
+    });
+
+    it('doesn\'t limit segment count for VOD', async () => {
+      const source = Dash.makeSimpleManifestText([
+        '<SegmentTemplate media="s$Number$.mp4" duration="1" />',
+      ], /* duration= */ 200);
+
+      const config = shaka.util.PlayerConfiguration.createDefault().manifest;
+      config.dash.initialSegmentLimit = 100;
+      parser.configure(config);
+
+      fakeNetEngine.setResponseText('dummy://foo', source);
+      const manifest = await parser.start('dummy://foo', playerInterface);
+      const stream = manifest.variants[0].video;
+      await stream.createSegmentIndex();
+      goog.asserts.assert(stream.segmentIndex, 'Should have created index');
+
+      const segments = Array.from(stream.segmentIndex);
+      expect(segments.length).toBe(200);
     });
   });
 
@@ -298,6 +349,23 @@ describe('DashParser SegmentTemplate', () => {
         ManifestParser.makeReference('0-0-500.mp4', 0, 15, baseUri),
         ManifestParser.makeReference('1-15-500.mp4', 15, 30, baseUri),
         ManifestParser.makeReference('2-30-500.mp4', 30, 45, baseUri),
+      ];
+      await Dash.testSegmentIndex(source, references);
+    });
+
+    it('uses PTO with t attribute missing', async () => {
+      const source = Dash.makeSimpleManifestText([
+        '<SegmentTemplate startNumber="0" presentationTimeOffset="10"',
+        '    media="$Number$-$Time$-$Bandwidth$.mp4">',
+        '  <SegmentTimeline>',
+        '    <S d="15" r="2" />',
+        '  </SegmentTimeline>',
+        '</SegmentTemplate>',
+      ], /* duration= */ 35);
+      const references = [
+        ManifestParser.makeReference('0-0-500.mp4', -10, 5, baseUri),
+        ManifestParser.makeReference('1-15-500.mp4', 5, 20, baseUri),
+        ManifestParser.makeReference('2-30-500.mp4', 20, 35, baseUri),
       ];
       await Dash.testSegmentIndex(source, references);
     });

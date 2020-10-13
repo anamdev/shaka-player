@@ -31,15 +31,18 @@ For details on what's coming next, see our [development roadmap](roadmap.md).
 |Chrome¹    |**Y**     |**Y**    |**Y**    |**Y**    |**Native**|**Y**   | -   |
 |Firefox¹   |**Y**     |**Y**    |**Y**    |untested⁵|**Native**| -      | -   |
 |Edge¹      |**Y**     | -       | -       | -       | -        | -      | -   |
+|Edge Chromium|**Y**     |**Y**    | -       |untested⁵|**Native**| -      | -   |
 |IE ≤ 10    | N        | -       | -       | -       | -        | -      | -   |
 |IE 11      |**Y** ⁴   | -       | -       | -       | -        | -      | -   |
 |Safari¹    | -        |**Y**    | -       | -       |**iPadOS 13<br>Native**| - | - |
 |Opera¹     |untested⁵ |untested⁵|untested⁵|untested⁵|**Native**| -      | -   |
 |Chromecast²| -        | -       | -       | -       | -        | -      |**Y**|
 |Tizen TV³  | -        | -       | -       | -       | -        | -      |**Y**|
+|WebOS⁶     | -        | -       | -       | -       | -        | -      |**Y**|
+|Xbox One⁶  | -        | -       | -       | -       | -        | -      |**Y**|
 
 NOTES:
- - ¹: On macOS, only Safari 11+ is supported.  On iOS, only iOS 12+ is
+ - ¹: On macOS, only Safari 12+ is supported.  On iOS, only iOS 12+ is
    supported.  Older versions will be rejected.
  - ²: The latest stable Chromecast firmware is tested. Both sender and receiver
    can be implemented with Shaka Player.
@@ -47,10 +50,14 @@ NOTES:
    team. Tizen 2016 model is community-supported and untested by us.
  - ⁴: IE 11 offers PlayReady support on Windows 8.1 and Windows 10 only. IE 11
    can play clear content on Windows 8.0. IE 11 does not support adaptive
-   playback on Windows 7 and under.  (IE support will stop in v2.7:
+   playback on Windows 7 and under.  (IE support will stop in v3.1:
    https://github.com/google/shaka-player/issues/2339)
  - ⁵: These are expected to work, but are not actively tested by the Shaka
    Player team.
+ - ⁶: These are expected to work, WebOS and Xbox One are community supported
+   and untested by us. (Official support for LG WebOS TV:
+   https://github.com/google/shaka-player/issues/1330, Official support for
+   Xbox One: https://github.com/google/shaka-player/issues/1705)
 
 We support iOS 12+ through Apple's native HLS player.  We provide the same
 top-level API, but we just set the video's `src` element to the manifest/media.
@@ -94,6 +101,8 @@ DASH features supported:
    manifest)
  - Key rotation
  - Trick mode tracks
+ - WebVTT and TTML
+ - CEA-608/708 captions
 
 DASH features **not** supported:
  - Xlink with actuate=onRequest
@@ -110,21 +119,21 @@ DASH features **not** supported:
 
 HLS features supported:
  - VOD, Live, and Event types
- - Encrypted content with Widevine
+ - Encrypted content with PlayReady and Widevine
  - ISO-BMFF / MP4 / CMAF support
- - MPEG-2 TS support (transmuxing provided by [mux.js][] v5.5.4+, must be
+ - MPEG-2 TS support (transmuxing provided by [mux.js][] v5.6.3+, must be
    separately included)
  - WebVTT and TTML
  - CEA-608/708 captions
  - Encrypted content with FairPlay (Safari on macOS and iOS 12+ only)
 
 HLS features **not** supported:
- - Encrypted content with PlayReady:
-   https://github.com/google/shaka-player/issues/1145
  - Key rotation: https://github.com/google/shaka-player/issues/917
  - I-frame-only playlists: https://github.com/google/shaka-player/issues/742
  - Raw AAC, MP3, etc (without an MP4 container):
    https://github.com/google/shaka-player/issues/2337
+ - CEA-708 in TS container not supported in mux.js yet:
+   https://github.com/videojs/mux.js/pull/346
 
 [mux.js]: https://github.com/videojs/mux.js/releases
 
@@ -136,11 +145,14 @@ HLS features **not** supported:
 |Chrome¹   |**Y**     | -       | -       |**Y**     |
 |Firefox²  |**Y**     | -       | -       |**Y**     |
 |Edge³     | -        |**Y**    | -       | -        |
+|Edge Chromium|**Y**     |**Y**    | -       |**Y**     |
 |IE 11⁴    | -        |**Y**    | -       | -        |
 |Safari    | -        | -       |**Y**    | -        |
 |Opera     |untested⁵ | -       | -       |untested⁵ |
 |Chromecast|**Y**     |**Y**    | -       |untested⁵ |
 |Tizen TV  |**Y**     |**Y**    | -       |untested⁵ |
+|WebOS⁷    |untested⁷ |untested⁷| -       |untested⁷ |
+|Xbox One⁷ | -        |untested⁷| -       | -        |
 
 Other DRM systems should work out of the box if they are interoperable and
 compliant to the EME spec.
@@ -152,12 +164,22 @@ NOTES:
    site with encrypted media, the user will be prompted to enable DRM.
  - ³: PlayReady in Edge does not seem to work on a VM or over Remote Desktop.
  - ⁴: IE 11 offers PlayReady support on Windows 8.1 and Windows 10 only.  (IE
-   support will stop in v2.7:
+   support will stop in v3.1:
    https://github.com/google/shaka-player/issues/2339)
  - ⁵: These are expected to work, but are not actively tested by the Shaka
    Player team.
  - ⁶: ClearKey is a useful tool for debugging, and does not provide actual
    content security.
+ - ⁷: These are expected to work, WebOS and Xbox One are community supported
+   and untested by us.
+
+|Manifest  |Widevine  |PlayReady|FairPlay |ClearKey  |
+|:--------:|:--------:|:-------:|:-------:|:--------:|
+|DASH      |**Y**     |**Y**    | -       |**Y**     |
+|HLS       |**Y**     |**Y**    |**Y** ¹  | -        |
+
+NOTES:
+ - ¹: We support FairPlay through Apple's native HLS player.
 
 
 ## Media container and subtitle support
@@ -174,13 +196,20 @@ Shaka Player supports:
       SegmentTemplate@index
     - Not supported in HLS
   - MPEG-2 TS
-    - With help from [mux.js][] v5.5.4+, can be played on any browser which
+    - With help from [mux.js][] v5.6.3+, can be played on any browser which
       supports MP4
     - Can find and parse timestamps to find segment start time in HLS
   - WebVTT
     - Supported in both text form and embedded in MP4
   - TTML
     - Supported in both XML form and embedded in MP4
+  - CEA-608
+    - Supported embedded in MP4
+    - With help from [mux.js][] v5.6.3+, supported embedded in TS
+  - CEA-708
+    - Supported embedded in MP4
+  - SubRip (SRT)
+    - UTF-8 encoding only
 
 Subtitles are rendered by the browser by default.  Applications can create a
 [text display plugin][] for customer rendering to go beyond browser-supported
@@ -191,24 +220,30 @@ attributes.
 <!-- TODO: replace with a link to a TextDisplayer tutorial -->
 
 
-## Important Links ##
+## Documentation & Important Links ##
 
- * [development roadmap](roadmap.md)
- * [hosted demo](http://shaka-player-demo.appspot.com) (sources in `demo/`)
- * [hosted builds on Google Hosted Libraries](https://developers.google.com/speed/libraries/#shaka-player)
- * [hosted builds on jsDelivr](https://www.jsdelivr.com/package/npm/shaka-player)
- * [announcement list](https://groups.google.com/forum/#!forum/shaka-player-users)
+ * [Demo](https://shaka-player-demo.appspot.com)([sources](demo/))
+ * [API documentation](https://shaka-player-demo.appspot.com/docs/api/index.html)
+ * [Tutorials](https://shaka-player-demo.appspot.com/docs/api/tutorial-welcome.html)
+ * [Hosted builds on Google Hosted Libraries](https://developers.google.com/speed/libraries/#shaka-player)
+ * [Hosted builds on jsDelivr](https://www.jsdelivr.com/package/npm/shaka-player)
+ * [Development roadmap](roadmap.md)
+ * [Announcement list](https://groups.google.com/forum/#!forum/shaka-player-users)
      ([join](docs/announcement-list-join-group.png) for release and survey
       announcements)
- * [hosted API docs](http://shaka-player-demo.appspot.com/docs/api/index.html)
- * [tutorials](http://shaka-player-demo.appspot.com/docs/api/tutorial-welcome.html)
+
+
+## FAQ ##
+
+For general help and before filing any bugs, please read the
+[FAQ](docs/tutorials/faq.md).
 
 
 ## Contributing ##
 
 If you have improvements or fixes, we would love to have your contributions.
-Please read CONTRIBUTING.md for more information on the process we would like
-contributors to follow.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md)
+for more information on the process we would like contributors to follow.
 
 
 ## Framework Integrations ##
@@ -226,8 +261,3 @@ Shaka + Next.js integration:
 
 If you have published Shaka Integration code/tutorials, please feel free to submit PRs
 to add them to this list, we will gladly approve!
-
-## FAQ ##
-
-For general help and before filing any bugs, please read the
-[FAQ](docs/tutorials/faq.md).

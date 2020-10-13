@@ -1,7 +1,14 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.media.MetaSegmentIndex');
+goog.require('shaka.media.SegmentIndex');
+goog.require('shaka.media.SegmentReference');
+goog.require('shaka.test.Util');
 
 describe('SegmentIndex', /** @suppress {accessControls} */ () => {
   const actual1 = makeReference(uri(0), 0, 10);
@@ -291,6 +298,161 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
       expect(index1.references[1]).toEqual(references2[0]);
       expect(index1.references[2]).toEqual(references2[1]);
     });
+
+    it('references with partial segments of the same parent segment', () => {
+      // refs1:  [[[0,5][5,10]]]
+      // refs2:  [[[0,5][5,10][10,15]]]
+      // Merged: [[[0,5][5,10][10,15]]]
+
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs1 = [
+        makeReference(uri(0.5), 0, 5),
+        makeReference(uri(5.10), 5, 10),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs2 = [
+        makeReference(uri(0.5), 0, 5),
+        makeReference(uri(5.10), 5, 10),
+        makeReference(uri(10.15), 10, 15),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs1 = [
+        makeReference(uri(0.10), 0, 10, partialRefs1),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs2 = [
+        makeReference(uri(0.15), 0, 15, partialRefs2),
+      ];
+      const index1 = new shaka.media.SegmentIndex(refs1);
+      index1.merge(refs2);
+      expect(index1.references).toEqual(refs2);
+    });
+
+    it('references with partial segments', () => {
+      // refs1: [[0,10], [[10,15][15,20]]]
+      // refs2: [        [[10,15][15,20][20,25]]]
+      // Merged:[[0,10], [[10,15][15,20][20,25]]]
+
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs1 = [
+        makeReference(uri(10.15), 10, 15),
+        makeReference(uri(15.20), 15, 20),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs2 = [
+        makeReference(uri(10.15), 10, 15),
+        makeReference(uri(15.20), 15, 20),
+        makeReference(uri(20.25), 20, 25),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs1 = [
+        makeReference(uri(0.10), 0, 10),
+        makeReference(uri(10.20), 10, 20, partialRefs1),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs2 = [
+        makeReference(uri(10.25), 10, 25, partialRefs2),
+      ];
+
+      const index1 = new shaka.media.SegmentIndex(refs1);
+      index1.merge(refs2);
+      const expectedRefs = [refs1[0]].concat(refs2);
+      expect(index1.references).toEqual(expectedRefs);
+    });
+
+    it('references and remove old partial segments ', () => {
+      // refs1: [[0,10], [[10,15][15,20]]]]
+      // refs2: [        [10,20], [[20,25][25,30]]]
+      // Merged:[[0,10], [10,20], [[20,25][25,30]]]
+
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs1 = [
+        makeReference(uri(10.15), 10, 15),
+        makeReference(uri(15.20), 15, 20),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs2 = [
+        makeReference(uri(20.25), 20, 25),
+        makeReference(uri(25.30), 25, 30),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs1 = [
+        makeReference(uri(0.10), 0, 10),
+        makeReference(uri(10.20), 10, 20, partialRefs1),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs2 = [
+        makeReference(uri(10.20), 10, 20),
+        makeReference(uri(20.30), 20, 30, partialRefs2),
+      ];
+
+      const index1 = new shaka.media.SegmentIndex(refs1);
+      index1.merge(refs2);
+      // Expect the first SegmentReference's partial SegmentReferences removed.
+      const expectedRefs = [refs1[0]].concat(refs2);
+      expect(index1.references).toEqual(expectedRefs);
+    });
+
+    it('references with only preload hinted segments', () => {
+      // refs1:  [[(preload-hint)[0,0]]]
+      // refs2:  [[[0,5][5,10]]]
+      // Merged: [[[0,5][5,10]]]
+
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      // A segment with only preload hinted partial segment.
+      const preloadRefs1 = [
+        makeReference(uri(0.0), 0, 0),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs2 = [
+        // Previous preload hinted segment is replaced with a partial segment.
+        makeReference(uri(0.5), 0, 5),
+        makeReference(uri(5.10), 5, 10),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs1 = [
+        makeReference(uri(0.0), 0, 0, preloadRefs1),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs2 = [
+        makeReference(uri(0.10), 0, 10, partialRefs2),
+      ];
+      const index1 = new shaka.media.SegmentIndex(refs1);
+      index1.merge(refs2);
+      expect(index1.references.length).toBe(1);
+      expect(index1.references).toEqual(refs2);
+    });
+
+    it('references with preload hinted segments', () => {
+      // refs1:  [[[0,5],(preload-hint)[5,5]]]
+      // refs2:  [[[0,5][5,10][10,15]]]
+      // Merged: [[[0,5][5,10][10,15]]]
+
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs1 = [
+        makeReference(uri(0.5), 0, 5),
+        // Preload hinted partial segment
+        makeReference(uri(5.5), 5, 5),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const partialRefs2 = [
+        makeReference(uri(0.5), 0, 5),
+        makeReference(uri(5.10), 5, 10),
+        makeReference(uri(10.15), 10, 15),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs1 = [
+        makeReference(uri(0.5), 0, 5, partialRefs1),
+      ];
+      /** @type {!Array.<!shaka.media.SegmentReference>} */
+      const refs2 = [
+        makeReference(uri(0.15), 0, 15, partialRefs2),
+      ];
+      const index1 = new shaka.media.SegmentIndex(refs1);
+      index1.merge(refs2);
+      expect(index1.references.length).toBe(1);
+      expect(index1.references).toEqual(refs2);
+    });
   });
 
   describe('evict', () => {
@@ -361,17 +523,42 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
   });
 
   describe('SegmentIterator', () => {
-    const makeReference = shaka.test.ManifestParser.makeReference;
     const inputRefs = [
-      makeReference(uri(0), 0, 10),
-      makeReference(uri(1), 10, 20),
-      makeReference(uri(2), 20, 30),
+      makeReference(uri(0.10), 0, 10),
+      makeReference(uri(10.20), 10, 20),
+      makeReference(uri(20.30), 20, 30),
     ];
+
+    const partialRefs1 = [
+      makeReference(uri(10.15), 10, 15),
+      makeReference(uri(15.20), 15, 20),
+    ];
+
+    const partialRefs2 = [
+      makeReference(uri(20.25), 20, 25),
+      makeReference(uri(25.30), 25, 30),
+    ];
+
+    const inputRefsWithPartial = [
+      makeReference(uri(0.10), 0, 10),
+      makeReference(uri(10.20), 10, 20, partialRefs1),
+      makeReference(uri(20.30), 20, 30, partialRefs2),
+    ];
+
 
     it('works with Array.from', () => {
       const index = new shaka.media.SegmentIndex(inputRefs);
       const refs = Array.from(index);
       expect(refs).toEqual(inputRefs);
+    });
+
+    it('works with Array.from with partial segments', () => {
+      const index = new shaka.media.SegmentIndex(inputRefsWithPartial);
+      const refs = Array.from(index);
+
+      const expectedRefs = [inputRefsWithPartial[0]].concat(
+          partialRefs1, partialRefs2);
+      expect(refs).toEqual(expectedRefs);
     });
 
     it('works with for-of', () => {
@@ -381,6 +568,18 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
         refs.push(ref);
       }
       expect(refs).toEqual(inputRefs);
+    });
+
+    it('works with for-of with partial segments', () => {
+      const index = new shaka.media.SegmentIndex(inputRefsWithPartial);
+      const refs = [];
+      for (const ref of index) {
+        refs.push(ref);
+      }
+
+      const expectedRefs = [inputRefsWithPartial[0]].concat(
+          partialRefs1, partialRefs2);
+      expect(refs).toEqual(expectedRefs);
     });
 
     it('works after eviction', () => {
@@ -394,6 +593,14 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
         const index = new shaka.media.SegmentIndex(inputRefs);
         const iterator = index[Symbol.iterator]();
         expect(iterator.seek(10)).toBe(inputRefs[1]);
+        expect(iterator.current()).toBe(inputRefs[1]);
+      });
+
+      it('returns the matching segment with partial segments', () => {
+        const index = new shaka.media.SegmentIndex(inputRefsWithPartial);
+        const iterator = index[Symbol.iterator]();
+        expect(iterator.seek(8)).toBe(inputRefsWithPartial[0]);
+        expect(iterator.seek(10)).toBe(partialRefs1[0]);
       });
     });
 
@@ -417,7 +624,31 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
         const index = new shaka.media.SegmentIndex(inputRefs);
         const iterator = index[Symbol.iterator]();
         expect(iterator.seek(10)).toBe(inputRefs[1]);
+        expect(iterator.current()).toBe(inputRefs[1]);
         expect(iterator.next().value).toBe(inputRefs[2]);
+        expect(iterator.current()).toBe(inputRefs[2]);
+        expect(iterator.next().value).toBe(null);
+      });
+
+      it('iterates forward after a seek with partial segments', () => {
+        const index = new shaka.media.SegmentIndex(inputRefsWithPartial);
+        const iterator = index[Symbol.iterator]();
+        expect(iterator.seek(10)).toBe(partialRefs1[0]);
+        expect(iterator.current()).toBe(partialRefs1[0]);
+        expect(iterator.next().value).toBe(partialRefs1[1]);
+        expect(iterator.current()).toBe(partialRefs1[1]);
+        expect(iterator.next().value).toBe(partialRefs2[0]);
+        expect(iterator.current()).toBe(partialRefs2[0]);
+      });
+
+      it('iterates through regular and partial segments', () => {
+        const index = new shaka.media.SegmentIndex(inputRefsWithPartial);
+        const iterator = index[Symbol.iterator]();
+        expect(iterator.next().value).toBe(inputRefsWithPartial[0]);
+        expect(iterator.next().value).toBe(partialRefs1[0]);
+        expect(iterator.next().value).toBe(partialRefs1[1]);
+        expect(iterator.next().value).toBe(partialRefs2[0]);
+        expect(iterator.next().value).toBe(partialRefs2[1]);
         expect(iterator.next().value).toBe(null);
       });
     });
@@ -443,6 +674,23 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
 
         expect(iterator.next().value).toBe(inputRefs[2]);
         expect(iterator.current()).toBe(inputRefs[2]);
+      });
+
+      it('returns the same thing returned by the previous next() call ' +
+          'with partial segments', () => {
+        const index = new shaka.media.SegmentIndex(inputRefsWithPartial);
+
+        // const index = new shaka.media.SegmentIndex(inputRefs);
+        const iterator = index[Symbol.iterator]();
+
+        expect(iterator.next().value).toBe(inputRefsWithPartial[0]);
+        expect(iterator.current()).toBe(inputRefsWithPartial[0]);
+        expect(iterator.next().value).toBe(partialRefs1[0]);
+        expect(iterator.current()).toBe(partialRefs1[0]);
+        expect(iterator.next().value).toBe(partialRefs1[1]);
+        expect(iterator.current()).toBe(partialRefs1[1]);
+        expect(iterator.next().value).toBe(partialRefs2[0]);
+        expect(iterator.current()).toBe(partialRefs2[0]);
       });
     });
   });
@@ -523,15 +771,6 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
       index1.merge(inputRefs2);
       expect(Array.from(metaIndex)).toEqual(
           inputRefs0.concat(inputRefs1, inputRefs2));
-    });
-
-    it('updates through replace', () => {
-      metaIndex.appendSegmentIndex(index0);
-      metaIndex.appendSegmentIndex(index1);
-      expect(Array.from(metaIndex)).toEqual(inputRefs0.concat(inputRefs1));
-
-      index1.replace(inputRefs2);
-      expect(Array.from(metaIndex)).toEqual(inputRefs0.concat(inputRefs2));
     });
 
     it('tracks evictions with stable positions', () => {
@@ -620,9 +859,10 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
    * @param {string} uri
    * @param {number} startTime
    * @param {number} endTime
+   * @param {!Array.<!shaka.media.SegmentReference>=} partialReferences
    * @return {shaka.media.SegmentReference}
    */
-  function makeReference(uri, startTime, endTime) {
+  function makeReference(uri, startTime, endTime, partialReferences = []) {
     return new shaka.media.SegmentReference(
         startTime,
         endTime,
@@ -632,6 +872,7 @@ describe('SegmentIndex', /** @suppress {accessControls} */ () => {
         /* initSegmentReference= */ null,
         /* timestampOffset= */ 0,
         /* appendWindowStart= */ 0,
-        /* appendWindowEnd= */ Infinity);
+        /* appendWindowEnd= */ Infinity,
+        /* partialReferences= */ partialReferences);
   }
 });

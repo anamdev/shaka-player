@@ -17,12 +17,14 @@
   { "service-worker": { "title": "Service Worker Caching" } },
   { "offline": { "title": "Offline Storage and Playback" } },
   { "fairplay": { "title": "FairPlay support" } },
+  { "application-level-redirects": { "title": "Application-Level Redirects" } },
   { "faq": { "title": "Frequently Asked Questions" } },
   { "upgrade": {
       "title": "Upgrade Guide",
       "children": {
-        "upgrade-v2-3": { "title": "Upgrade Guide, v2.3 => v2.5" },
-        "upgrade-v2-4": { "title": "Upgrade Guide, v2.4 => v2.5" }
+        "upgrade-v2-4": { "title": "Upgrade Guide, v2.4 => v3.0" },
+        "upgrade-v2-5": { "title": "Upgrade Guide, v2.5 => v3.0" },
+        "upgrade-manifest": { "title": "Shaka Player Manifest Upgrade Guide" }
       }
   } }
 ]

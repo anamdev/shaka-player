@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +8,8 @@
 goog.provide('shaka.ui.Utils');
 
 goog.require('goog.asserts');
+goog.require('shaka.ui.Enums');
+goog.require('shaka.util.Dom');
 
 
 shaka.ui.Utils = class {
@@ -62,7 +65,7 @@ shaka.ui.Utils = class {
    */
   static checkmarkIcon() {
     const icon = shaka.util.Dom.createHTMLElement('i');
-    icon.classList.add('material-icons');
+    icon.classList.add('material-icons-round');
     icon.classList.add('shaka-chosen-item');
     icon.textContent = shaka.ui.Enums.MaterialDesignIcons.CHECKMARK;
     // Screen reader should ignore icon text.

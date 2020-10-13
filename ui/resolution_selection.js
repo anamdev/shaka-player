@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,12 +7,17 @@
 
 goog.provide('shaka.ui.ResolutionSelection');
 
+goog.require('goog.asserts');
+goog.require('shaka.ui.Constants');
 goog.require('shaka.ui.Enums');
 goog.require('shaka.ui.Locales');
 goog.require('shaka.ui.Localization');
 goog.require('shaka.ui.OverflowMenu');
 goog.require('shaka.ui.SettingsMenu');
+goog.require('shaka.ui.Utils');
 goog.require('shaka.util.Dom');
+goog.require('shaka.util.FakeEvent');
+goog.requireType('shaka.ui.Controls');
 
 
 /**
@@ -78,6 +84,11 @@ shaka.ui.ResolutionSelection = class extends shaka.ui.SettingsMenu {
     shaka.ui.Utils.setDisplay(this.button, true);
 
     tracks.sort((t1, t2) => {
+      // We have already screened for audio-only content, but the compiler
+      // doesn't know that.
+      goog.asserts.assert(t1.height != null, 'Null height');
+      goog.asserts.assert(t2.height != null, 'Null height');
+
       return t2.height - t1.height;
     });
 

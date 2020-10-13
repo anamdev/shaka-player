@@ -1,7 +1,21 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.hls.HlsParser');
+goog.require('shaka.log');
+goog.require('shaka.net.NetworkingEngine');
+goog.require('shaka.test.FakeNetworkingEngine');
+goog.require('shaka.test.ManifestGenerator');
+goog.require('shaka.test.ManifestParser');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.ManifestParserUtils');
+goog.require('shaka.util.PlayerConfiguration');
+goog.require('shaka.util.Uint8ArrayUtils');
 
 describe('HlsParser', () => {
   const ContentType = shaka.util.ManifestParserUtils.ContentType;
@@ -21,6 +35,8 @@ describe('HlsParser', () => {
   let fakeNetEngine;
   /** @type {!shaka.hls.HlsParser} */
   let parser;
+  /** @type {!jasmine.Spy} */
+  let onEventSpy;
   /** @type {shaka.extern.ManifestParser.PlayerInterface} */
   let playerInterface;
   /** @type {shaka.extern.ManifestConfiguration} */
@@ -76,12 +92,15 @@ describe('HlsParser', () => {
     fakeNetEngine = new shaka.test.FakeNetworkingEngine();
 
     config = shaka.util.PlayerConfiguration.createDefault().manifest;
+    onEventSpy = jasmine.createSpy('onEvent');
     playerInterface = {
-      filter: () => {},
+      filter: () => Promise.resolve(),
+      makeTextStreamsForClosedCaptions: (manifest) => {},
       networkingEngine: fakeNetEngine,
       onError: fail,
-      onEvent: fail,
+      onEvent: shaka.test.Util.spyFunc(onEventSpy),
       onTimelineRegionAdded: fail,
+      isLowLatencyMode: () => false,
     };
 
     parser = new shaka.hls.HlsParser();
@@ -515,14 +534,15 @@ describe('HlsParser', () => {
     const presentationTimeline = manifest.presentationTimeline;
     const stream = manifest.variants[0].video;
     await stream.createSegmentIndex();
+    goog.asserts.assert(stream.segmentIndex != null, 'Null segmentIndex!');
 
-    const pos = stream.segmentIndex.find(0);
-    expect(pos).not.toBe(null);
-    const ref = stream.segmentIndex.get(pos);
-
-    expect(ref.startTime).toBe(0);
-    // baseMediaDecodeTime (655360) / timescale (1000)
-    expect(ref.timestampOffset).toBe(-655.36);
+    const ref = Array.from(stream.segmentIndex)[0];
+    expect(ref).not.toBe(null);
+    if (ref) {
+      expect(ref.startTime).toBe(0);
+      // baseMediaDecodeTime (655360) / timescale (1000)
+      expect(ref.timestampOffset).toBe(-655.36);
+    }
     expect(presentationTimeline.getSeekRangeStart()).toBe(0);
     expect(presentationTimeline.getSeekRangeEnd()).toBe(5);
   });
@@ -763,6 +783,49 @@ describe('HlsParser', () => {
         variant.addPartialStream(ContentType.VIDEO);
         variant.addPartialStream(ContentType.AUDIO, (stream) => {
           stream.language = 'fr';
+        });
+      });
+    });
+
+    await testHlsParser(master, media, manifest);
+  });
+
+  it('parses characteristics from audio tags', async () => {
+    const master = [
+      '#EXTM3U\n',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1,mp4a",',
+      'RESOLUTION=960x540,FRAME-RATE=60,AUDIO="aud1"\n',
+      'video\n',
+      '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="en",',
+      'URI="audio"\n',
+      '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud1",LANGUAGE="en",',
+      'CHARACTERISTICS="public.accessibility.describes-video",URI="audio2"\n',
+    ].join('');
+
+    const media = [
+      '#EXTM3U\n',
+      '#EXT-X-PLAYLIST-TYPE:VOD\n',
+      '#EXT-X-MAP:URI="init.mp4",BYTERANGE="616@0"\n',
+      '#EXTINF:5,\n',
+      '#EXT-X-BYTERANGE:121090@616\n',
+      'main.mp4',
+    ].join('');
+
+    const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+      manifest.anyTimeline();
+      manifest.addPartialVariant((variant) => {
+        variant.language = 'en';
+        variant.addPartialStream(ContentType.VIDEO);
+        variant.addPartialStream(ContentType.AUDIO, (stream) => {
+          stream.language = 'en';
+        });
+      });
+      manifest.addPartialVariant((variant) => {
+        variant.language = 'en';
+        variant.addPartialStream(ContentType.VIDEO);
+        variant.addPartialStream(ContentType.AUDIO, (stream) => {
+          stream.language = 'en';
+          stream.roles = ['public.accessibility.describes-video'];
         });
       });
     });
@@ -1502,16 +1565,12 @@ describe('HlsParser', () => {
 
     await video.createSegmentIndex();
     await audio.createSegmentIndex();
+    goog.asserts.assert(video.segmentIndex != null, 'Null segmentIndex!');
+    goog.asserts.assert(audio.segmentIndex != null, 'Null segmentIndex!');
 
-    const videoPosition = video.segmentIndex.find(0);
-    const audioPosition = audio.segmentIndex.find(0);
-    goog.asserts.assert(
-        videoPosition != null, 'Cannot find first video segment');
-    goog.asserts.assert(
-        audioPosition != null, 'Cannot find first audio segment');
+    const videoReference = Array.from(video.segmentIndex)[0];
+    const audioReference = Array.from(audio.segmentIndex)[0];
 
-    const videoReference = video.segmentIndex.get(videoPosition);
-    const audioReference = audio.segmentIndex.get(audioPosition);
     expect(videoReference).not.toBe(null);
     expect(audioReference).not.toBe(null);
     if (videoReference) {
@@ -1590,6 +1649,7 @@ describe('HlsParser', () => {
     const actualManifest = await parser.start('test:/master', playerInterface);
     const actualVideo = actualManifest.variants[0].video;
     await actualVideo.createSegmentIndex();
+    goog.asserts.assert(actualVideo.segmentIndex != null, 'Null segmentIndex!');
 
     // Verify that the stream contains two segment references, each of the
     // SegmentReference object contains the InitSegmentReference with expected
@@ -1676,11 +1736,14 @@ describe('HlsParser', () => {
     const initDataBase64 =
         'dGhpcyBpbml0IGRhdGEgY29udGFpbnMgaGlkZGVuIHNlY3JldHMhISE=';
 
+    const keyId = 'abc123';
+
     const media = [
       '#EXTM3U\n',
       '#EXT-X-TARGETDURATION:6\n',
       '#EXT-X-PLAYLIST-TYPE:VOD\n',
       '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,',
+      'KEYID=0X' + keyId + ',',
       'KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed",',
       'URI="data:text/plain;base64,',
       initDataBase64, '",\n',
@@ -1696,6 +1759,46 @@ describe('HlsParser', () => {
         variant.addPartialStream(ContentType.VIDEO, (stream) => {
           stream.encrypted = true;
           stream.addDrmInfo('com.widevine.alpha', (drmInfo) => {
+            drmInfo.addCencInitData(initDataBase64);
+            drmInfo.keyIds.add(keyId);
+          });
+        });
+      });
+    });
+
+    await testHlsParser(master, media, manifest);
+  });
+
+  it('constructs DrmInfo for PlayReady', async () => {
+    const master = [
+      '#EXTM3U\n',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1",',
+      'RESOLUTION=960x540,FRAME-RATE=60\n',
+      'video\n',
+    ].join('');
+
+    const initDataBase64 =
+        'AAAAKXBzc2gAAAAAmgTweZhAQoarkuZb4IhflQAAAAlQbGF5cmVhZHk=';
+
+    const media = [
+      '#EXTM3U\n',
+      '#EXT-X-TARGETDURATION:6\n',
+      '#EXT-X-PLAYLIST-TYPE:VOD\n',
+      '#EXT-X-KEY:METHOD=SAMPLE-AES-CTR,',
+      'KEYFORMAT="com.microsoft.playready",',
+      'URI="data:text/plain;base64,UGxheXJlYWR5",\n',
+      '#EXT-X-MAP:URI="init.mp4"\n',
+      '#EXTINF:5,\n',
+      '#EXT-X-BYTERANGE:121090@616\n',
+      'main.mp4',
+    ].join('');
+
+    const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+      manifest.anyTimeline();
+      manifest.addPartialVariant((variant) => {
+        variant.addPartialStream(ContentType.VIDEO, (stream) => {
+          stream.encrypted = true;
+          stream.addDrmInfo('com.microsoft.playready', (drmInfo) => {
             drmInfo.addCencInitData(initDataBase64);
           });
         });
@@ -1932,6 +2035,8 @@ describe('HlsParser', () => {
     let segmentDataStartTime;
     /** @type {!Uint8Array} */
     let tsSegmentData;
+    /** @type {!Uint8Array} */
+    let nullTsPacketData;
 
     const master = [
       '#EXTM3U\n',
@@ -1985,6 +2090,10 @@ describe('HlsParser', () => {
       // 180000 (TS PTS) divided by fixed TS timescale (90000) = 2s.
       // 2000 (MP4 PTS) divided by parsed MP4 timescale (1000) = 2s.
       segmentDataStartTime = 2;
+      nullTsPacketData = new Uint8Array([
+        0x47, // TS sync byte (fixed value)
+        0x1f, 0xff, // null packet (packet ID 8191)
+      ]);
     });
 
     it('parses start time from mp4 segment', async () => {
@@ -2050,6 +2159,46 @@ describe('HlsParser', () => {
           partialEndByte);
     });
 
+    it('parses start time from ts segments with null packets', async () => {
+      const tsMediaPlaylist = media.replace(/\.mp4/g, '.ts');
+
+      // Each packet is 188 bytes, so allocate space for 3.
+      const tsSegmentWithNullPackets = new Uint8Array(188 * 3);
+      // The first two are "null" packets.
+      tsSegmentWithNullPackets.set(nullTsPacketData, /* offset= */ 0);
+      tsSegmentWithNullPackets.set(nullTsPacketData, /* offset= */ 188);
+      // The third has a timestamp.
+      tsSegmentWithNullPackets.set(tsSegmentData, /* offset= */ 188 * 2);
+
+      fakeNetEngine
+          .setResponseText('test:/master', master)
+          .setResponseText('test:/video', tsMediaPlaylist)
+          .setResponseValue('test:/main.ts', tsSegmentWithNullPackets);
+
+      const expectedRef = ManifestParser.makeReference(
+          /* uri= */ 'test:/main.ts',
+          /* startTime= */ 0,
+          /* endTime= */ 5,
+          /* baseUri= */ '',
+          expectedStartByte,
+          expectedEndByte);
+      // In VOD content, we set the timestampOffset to align the
+      // content to presentation time 0.
+      expectedRef.timestampOffset = -segmentDataStartTime;
+
+      const manifest = await parser.start('test:/master', playerInterface);
+      const video = manifest.variants[0].video;
+      await video.createSegmentIndex();
+      ManifestParser.verifySegmentIndex(video, [expectedRef]);
+
+      // Make sure the segment data was fetched with the correct byte
+      // range.
+      fakeNetEngine.expectRangeRequest(
+          'test:/main.ts',
+          expectedStartByte,
+          partialEndByte);
+    });
+
     // We want to make sure that we can interrupt the parser while it is getting
     // the start time. This is a regression test for Issue #1788 where
     // interrupting the partial network request would be misinterpreted as the
@@ -2063,7 +2212,7 @@ describe('HlsParser', () => {
       // We are assuming that the time will be pulled out of the main mp4
       // segment, so if we see a request that has a range header, we will stop
       // the parser.
-      /** @type {!Map.<string, !ArrayBuffer>} */
+      /** @type {!Map.<string, !BufferSource>} */
       const responses = new Map();
       responses.set('test:/main.mp4', segmentData);
       responses.set('test:/init.mp4', initSegmentData);
@@ -2100,8 +2249,11 @@ describe('HlsParser', () => {
 
       const manifest = await parser.start('test:/master', playerInterface);
       const presentationTimeline = manifest.presentationTimeline;
+
       const video = manifest.variants[0].video;
       await video.createSegmentIndex();
+      goog.asserts.assert(video.segmentIndex != null, 'Null segmentIndex!');
+
       const refs = Array.from(video.segmentIndex);
       expect(refs.length).toBe(1);
 
@@ -2110,6 +2262,26 @@ describe('HlsParser', () => {
       // even though the endTime of the segment is larger.
       expect(refs[0].endTime - refs[0].startTime).toBe(5);
       expect(presentationTimeline.getDuration()).toBe(5);
+    });
+
+    it('forces full segment request', async () => {
+      fakeNetEngine
+          .setResponseText('test:/master', master)
+          .setResponseText('test:/video', media)
+          .setResponseValue('test:/init.mp4', initSegmentData)
+          .setResponseValue('test:/main.mp4', segmentData);
+
+      const config = shaka.util.PlayerConfiguration.createDefault().manifest;
+      config.hls.useFullSegmentsForStartTime = true;
+      parser.configure(config);
+      await parser.start('test:/master', playerInterface);
+
+      // Make sure the segment data was fetched with the correct byte
+      // range.
+      fakeNetEngine.expectRangeRequest(
+          'test:/main.mp4',
+          expectedStartByte,
+          expectedEndByte);
     });
   });
 
@@ -2526,6 +2698,8 @@ describe('HlsParser', () => {
 
       await video.createSegmentIndex();
       await audio.createSegmentIndex();
+      goog.asserts.assert(video.segmentIndex != null, 'Null segmentIndex!');
+      goog.asserts.assert(audio.segmentIndex != null, 'Null segmentIndex!');
 
       // We check that the references are correct to check that the entire
       // flow has gone well.
@@ -2571,6 +2745,8 @@ describe('HlsParser', () => {
 
       await video.createSegmentIndex();
       await audio.createSegmentIndex();
+      goog.asserts.assert(video.segmentIndex != null, 'Null segmentIndex!');
+      goog.asserts.assert(audio.segmentIndex != null, 'Null segmentIndex!');
 
       // We check that the references are correct to check that the entire
       // flow has gone well.
@@ -2616,6 +2792,8 @@ describe('HlsParser', () => {
 
       await video.createSegmentIndex();
       await audio.createSegmentIndex();
+      goog.asserts.assert(video.segmentIndex != null, 'Null segmentIndex!');
+      goog.asserts.assert(audio.segmentIndex != null, 'Null segmentIndex!');
 
       // We check that the references are correct to check that the entire
       // flow has gone well.
@@ -2626,6 +2804,176 @@ describe('HlsParser', () => {
       const audioReference = Array.from(audio.segmentIndex)[0];
       expect(audioReference.getUris())
           .toEqual(['test:/host/segment.mp4?token=1']);
+    });
+  });
+
+  describe('EXT-X-SESSION-DATA', () => {
+    it('parses value data', async () => {
+      const master = [
+        '#EXTM3U\n',
+        '#EXT-X-SESSION-DATA:DATA-ID="fooId",VALUE="fooValue"\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="mp4a"\n',
+        'audio',
+      ].join('');
+
+      const media = [
+        '#EXTM3U\n',
+        '#EXT-X-PLAYLIST-TYPE:VOD\n',
+        '#EXT-X-MAP:URI="init.mp4",BYTERANGE="616@0"\n',
+        '#EXTINF:5,\n',
+        '#EXT-X-BYTERANGE:121090@616\n',
+        'main.mp4',
+      ].join('');
+
+      const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+        manifest.anyTimeline();
+        manifest.addPartialVariant((variant) => {
+          variant.addPartialStream(ContentType.AUDIO, (stream) => {
+            stream.mime('audio/mp4', 'mp4a');
+          });
+        });
+      });
+
+      await testHlsParser(master, media, manifest);
+
+      const eventValue = {
+        type: 'sessiondata',
+        id: 'fooId',
+        value: 'fooValue',
+      };
+      expect(onEventSpy).toHaveBeenCalledWith(
+          jasmine.objectContaining(eventValue));
+    });
+
+    it('parses value data with language', async () => {
+      const master = [
+        '#EXTM3U\n',
+        '#EXT-X-SESSION-DATA:DATA-ID="fooId",LANGUAGE="en",VALUE="fooValue"\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="mp4a"\n',
+        'audio',
+      ].join('');
+
+      const media = [
+        '#EXTM3U\n',
+        '#EXT-X-PLAYLIST-TYPE:VOD\n',
+        '#EXT-X-MAP:URI="init.mp4",BYTERANGE="616@0"\n',
+        '#EXTINF:5,\n',
+        '#EXT-X-BYTERANGE:121090@616\n',
+        'main.mp4',
+      ].join('');
+
+      const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+        manifest.anyTimeline();
+        manifest.addPartialVariant((variant) => {
+          variant.addPartialStream(ContentType.AUDIO, (stream) => {
+            stream.mime('audio/mp4', 'mp4a');
+          });
+        });
+      });
+
+      await testHlsParser(master, media, manifest);
+
+      const eventValue = {
+        type: 'sessiondata',
+        id: 'fooId',
+        language: 'en',
+        value: 'fooValue',
+      };
+      expect(onEventSpy).toHaveBeenCalledWith(
+          jasmine.objectContaining(eventValue));
+    });
+
+    it('parses uri data', async () => {
+      const master = [
+        '#EXTM3U\n',
+        '#EXT-X-SESSION-DATA:DATA-ID="fooId",URI="foo.json"\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="mp4a"\n',
+        'audio',
+      ].join('');
+
+      const media = [
+        '#EXTM3U\n',
+        '#EXT-X-PLAYLIST-TYPE:VOD\n',
+        '#EXT-X-MAP:URI="init.mp4",BYTERANGE="616@0"\n',
+        '#EXTINF:5,\n',
+        '#EXT-X-BYTERANGE:121090@616\n',
+        'main.mp4',
+      ].join('');
+
+      const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+        manifest.anyTimeline();
+        manifest.addPartialVariant((variant) => {
+          variant.addPartialStream(ContentType.AUDIO, (stream) => {
+            stream.mime('audio/mp4', 'mp4a');
+          });
+        });
+      });
+
+      await testHlsParser(master, media, manifest);
+
+      const eventValue = {
+        type: 'sessiondata',
+        id: 'fooId',
+        uri: 'test:/foo.json',
+      };
+      expect(onEventSpy).toHaveBeenCalledWith(
+          jasmine.objectContaining(eventValue));
+    });
+
+    it('parses mutiple data', async () => {
+      const master = [
+        '#EXTM3U\n',
+        '#EXT-X-SESSION-DATA:DATA-ID="fooId",LANGUAGE="en",VALUE="fooValue"\n',
+        '#EXT-X-SESSION-DATA:DATA-ID="fooId",LANGUAGE="es",VALUE="fooValue"\n',
+        '#EXT-X-SESSION-DATA:DATA-ID="fooId",URI="foo.json"\n',
+        '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="mp4a"\n',
+        'audio',
+      ].join('');
+
+      const media = [
+        '#EXTM3U\n',
+        '#EXT-X-PLAYLIST-TYPE:VOD\n',
+        '#EXT-X-MAP:URI="init.mp4",BYTERANGE="616@0"\n',
+        '#EXTINF:5,\n',
+        '#EXT-X-BYTERANGE:121090@616\n',
+        'main.mp4',
+      ].join('');
+
+      const manifest = shaka.test.ManifestGenerator.generate((manifest) => {
+        manifest.anyTimeline();
+        manifest.addPartialVariant((variant) => {
+          variant.addPartialStream(ContentType.AUDIO, (stream) => {
+            stream.mime('audio/mp4', 'mp4a');
+          });
+        });
+      });
+
+      await testHlsParser(master, media, manifest);
+
+      expect(onEventSpy).toHaveBeenCalledTimes(3);
+      const eventValue1 = {
+        type: 'sessiondata',
+        id: 'fooId',
+        language: 'en',
+        value: 'fooValue',
+      };
+      expect(onEventSpy).toHaveBeenCalledWith(
+          jasmine.objectContaining(eventValue1));
+      const eventValue2 = {
+        type: 'sessiondata',
+        id: 'fooId',
+        language: 'es',
+        value: 'fooValue',
+      };
+      expect(onEventSpy).toHaveBeenCalledWith(
+          jasmine.objectContaining(eventValue2));
+      const eventValue3 = {
+        type: 'sessiondata',
+        id: 'fooId',
+        uri: 'test:/foo.json',
+      };
+      expect(onEventSpy).toHaveBeenCalledWith(
+          jasmine.objectContaining(eventValue3));
     });
   });
 });

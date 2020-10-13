@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,7 +10,12 @@
  */
 
 
-/** @const */
+/**
+ * @typedef {{
+ *   mp4: typeof muxjs.mp4
+ * }}
+ * @const
+*/
 var muxjs = {};
 
 

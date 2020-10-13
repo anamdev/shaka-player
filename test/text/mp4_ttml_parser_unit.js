@@ -1,7 +1,13 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.test.Util');
+goog.require('shaka.text.Mp4TtmlParser');
+goog.require('shaka.util.BufferUtils');
+goog.require('shaka.util.Error');
 
 describe('Mp4TtmlParser', () => {
   const ttmlInitSegmentUri = '/base/test/test/assets/ttml-init.mp4';

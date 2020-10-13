@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -135,7 +136,7 @@ shakaDemo.InputContainer = class {
     link.classList.add('mdl-button--colored');
 
     const icon = document.createElement('i');
-    icon.classList.add('material-icons');
+    icon.classList.add('material-icons-round');
     icon.textContent = 'help';
 
     link.appendChild(icon);

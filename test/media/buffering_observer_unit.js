@@ -1,7 +1,11 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.media.BufferingObserver');
+goog.require('shaka.util.Iterables');
 
 describe('BufferingObserver', () => {
   const BufferingObserver = shaka.media.BufferingObserver;

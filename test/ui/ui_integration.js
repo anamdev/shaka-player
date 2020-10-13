@@ -1,7 +1,24 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('mozilla.LanguageMapping');
+goog.require('shaka.test.Loader');
+goog.require('shaka.test.TestScheme');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.test.Waiter');
+goog.require('shaka.ui.Element');
+goog.require('shaka.util.Dom');
+goog.require('shaka.util.EventManager');
+goog.require('shaka.util.Iterables');
+goog.requireType('shaka.Player');
+goog.requireType('shaka.ui.Controls');
+goog.requireType('shaka.ui.Overlay');
+
 
 describe('UI', () => {
   const Util = shaka.test.Util;
@@ -20,18 +37,21 @@ describe('UI', () => {
   let eventManager;
   /** @type {shaka.test.Waiter} */
   let waiter;
-  /** @type {!Element} */
+  /** @type {!HTMLLinkElement} */
   let cssLink;
+  /** @type {!shaka.ui.Overlay} */
+  let ui;
   /** @type {!shaka.ui.Controls} */
   let controls;
-
+  /** @type {shakaNamespaceType} */
   let compiledShaka;
 
   beforeAll(async () => {
-    cssLink = document.createElement('link');
+    cssLink = /** @type {!HTMLLinkElement} */(document.createElement('link'));
     await UiUtils.setupCSS(cssLink);
 
-    compiledShaka = await Util.loadShaka(getClientArg('uncompiled'));
+    compiledShaka =
+        await shaka.test.Loader.loadShaka(getClientArg('uncompiled'));
     await shaka.test.TestScheme.createManifests(compiledShaka, '_compiled');
   });
 
@@ -65,14 +85,16 @@ describe('UI', () => {
       // TODO: Cast receiver id to test chromecast integration
     };
 
-    const ui = new compiledShaka.ui.Overlay(player, videoContainer, video);
+    ui = new compiledShaka.ui.Overlay(player, videoContainer, video);
     ui.configure(config);
 
     // Grab event manager from the uncompiled library:
     eventManager = new shaka.util.EventManager();
     waiter = new shaka.test.Waiter(eventManager);
 
-    controls = ui.getControls();
+    const tempControls = ui.getControls();
+    goog.asserts.assert(tempControls != null, 'Controls are null!');
+    controls = tempControls;
 
     onErrorSpy = jasmine.createSpy('onError');
     onErrorSpy.and.callFake((event) => {
@@ -103,7 +125,6 @@ describe('UI', () => {
   afterAll(() => {
     document.head.removeChild(cssLink);
   });
-
 
   describe('language selections', () => {
     /** @type {!Map.<string, !HTMLElement>} */
@@ -143,8 +164,7 @@ describe('UI', () => {
             () => player.getVariantTracks(),
             (language) => player.selectAudioLanguage(language));
       });
-    });
-
+    });  // describe('audio')
 
     describe('caption selection', () => {
       beforeEach(() => {
@@ -210,7 +230,6 @@ describe('UI', () => {
         expect(offButtonChosen).not.toBe(null);
       });
 
-
       /**
        * @return {Element}
        */
@@ -221,8 +240,7 @@ describe('UI', () => {
         expect(offButton).not.toBe(null);
         return offButton;
       }
-    });
-
+    });  // describe('caption selection')
 
     /**
      * @param {!Array.<shaka.extern.LanguageRole>} languagesAndRoles
@@ -242,7 +260,6 @@ describe('UI', () => {
       );
     }
 
-
     /**
      * @param {string} language
      * @return {string}
@@ -250,7 +267,6 @@ describe('UI', () => {
     function getNativeName(language) {
       return mozilla.LanguageMapping[language].nativeName;
     }
-
 
     /**
      * Make sure languages specified by the manifest match what we show on UI.
@@ -262,7 +278,6 @@ describe('UI', () => {
 
       verifyItems(langsFromContentNative, languageButtons);
     }
-
 
     /**
      * @param {string} playerEventName
@@ -278,7 +293,6 @@ describe('UI', () => {
       await waiter.waitForEvent(player, playerEventName);
       expect(getSelectedTrack(getTracks()).language).toBe(newLanguage);
     }
-
 
     /**
      * @param {string} controlsEventName
@@ -311,8 +325,7 @@ describe('UI', () => {
 
       expect(isChosen).not.toBe(null);
     }
-  });
-
+  });  // describe('language selections')
 
   describe('resolution selection', () => {
     /** @type {!Map.<number, !HTMLElement>} */
@@ -333,7 +346,6 @@ describe('UI', () => {
     let preferredLanguage;
     /** @type {!shaka.extern.Track} */
     let oldResolutionTrack;
-
 
     beforeEach(async () => {
       oldResolution = 182;
@@ -367,14 +379,12 @@ describe('UI', () => {
       }
     });
 
-
     it('contains all the relevant resolutions', () => {
       const formattedResolutions = resolutionsFromContent.map((res) => {
         return formatResolution(res);
       });
       verifyItems(formattedResolutions, resolutionButtons);
     });
-
 
     it('changing resolution via UI has effect on the player', async () => {
       // Update the tracks
@@ -390,7 +400,6 @@ describe('UI', () => {
       tracks = player.getVariantTracks();
       expect(getSelectedTrack(tracks).height).toBe(newResolution);
     });
-
 
     it('changing resolution via API has effect on the UI', async () => {
       updateResolutionButtonsAndMap();
@@ -414,7 +423,6 @@ describe('UI', () => {
       expect(isChosen).not.toBe(null);
     });
 
-
     it('selecting Auto via UI enables ABR', async () => {
       // We disabled abr in beforeEach()
       expect(player.getConfiguration().abr.enabled).toBe(false);
@@ -429,7 +437,6 @@ describe('UI', () => {
       expect(player.getConfiguration().abr.enabled).toBe(true);
     });
 
-
     it('selecting specific resolution disables ABR', async () => {
       const config = {abr: {enabled: true}};
       player.configure(config);
@@ -443,7 +450,6 @@ describe('UI', () => {
       await p;
       expect(player.getConfiguration().abr.enabled).toBe(false);
     });
-
 
     it('enabling ABR via API gets the Auto button selected', async () => {
       expect(player.getConfiguration().abr.enabled).toBe(false);
@@ -481,7 +487,6 @@ describe('UI', () => {
       expect(resolutionButton.classList.contains('shaka-hidden')).toBe(false);
     });
 
-
     /**
      * @return {Element}
      */
@@ -493,7 +498,6 @@ describe('UI', () => {
       return auto;
     }
 
-
     /**
      * Gets the resolution to the same format it
      * appears in the UI: height + 'p'.
@@ -504,7 +508,6 @@ describe('UI', () => {
     function formatResolution(height) {
       return height.toString() + 'p';
     }
-
 
     /**
      * @param {!Array.<!shaka.extern.Track>} tracks
@@ -523,7 +526,6 @@ describe('UI', () => {
 
       return trackWithRes;
     }
-
 
     function updateResolutionButtonsAndMap() {
       tracks = player.getVariantTracks();
@@ -547,7 +549,72 @@ describe('UI', () => {
           /* choices= */ resolutionsFromContent,
           /* modifier= */ formatResolution);
     }
-  });
+  });  // describe('resolution selection')
+
+  describe('uncompiled UI element plugin', () => {
+    it('has access to the features of the compiled base class', () => {
+      let constructed = false;
+
+      // For the uncompiled element below, we won't want to create real
+      // controls.  Real controls would create a CastProxy which would conflict
+      // with the compiled version instantiated above.
+      const fakeControls = /** @type {!shaka.ui.Controls} */({
+        getLocalization: () => null,
+        getPlayer: () => player,
+        getVideo: () => null,
+      });
+
+      /** @extends {shaka.ui.Element} */
+      const UncompiledElementType = class extends shaka.ui.Element {};
+      const uncompiledElement = new UncompiledElementType(
+          videoContainer, fakeControls);
+      uncompiledElement.release();
+
+      /** @extends {shaka.ui.Element} */
+      const TestElement = class extends compiledShaka.ui.Element {
+        /**
+         * @param {!HTMLElement} parent
+         * @param {!shaka.ui.Controls} controls
+         * @suppress {checkTypes} since we use "in" and "[]" on a struct.
+         */
+        constructor(parent, controls) {
+          super(parent, controls);
+          constructed = true;
+
+          // The compiled base class's protected members should still have their
+          // original names.  Otherwise, apps can't register uncompiled plugins.
+          // Rather than list them and potentially let them get out of date, use
+          // the uncompiled library as a reference.
+          for (const k in uncompiledElement) {
+            if (k.endsWith('_')) {
+              // Skip private members.
+              continue;
+            }
+
+            // All public and protected members of the uncompiled base class
+            // should be available on "this" with their original names.
+            expect(this[k]).withContext(k).toBeDefined();
+          }
+        }
+      };
+
+      /** @implements {shaka.extern.IUIElement.Factory} */
+      const TestElementFactory = class {
+        /** @override */
+        create(rootElement, controls) {
+          return new TestElement(rootElement, controls);
+        }
+      };
+
+      compiledShaka.ui.Controls.registerElement(
+          'test_element', new TestElementFactory());
+
+      constructed = false;
+      ui.configure('controlPanelElements', ['test_element']);
+      // The constructor contains expectations, so make sure we called it.
+      expect(constructed).toBe(true);
+    });
+  });  // describe('UI element plugins')
 
   /**
    * @param {!Array.<!shaka.extern.Track>} tracks
@@ -587,7 +654,6 @@ describe('UI', () => {
     return map;
   }
 
-
   /**
    * Filter out buttons with given classes.
    *
@@ -607,7 +673,6 @@ describe('UI', () => {
           return true;
         });
   }
-
 
   /**
    * Make sure elements from content match their UI representation.

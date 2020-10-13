@@ -1,7 +1,24 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.Player');
+goog.require('shaka.cast.CastReceiver');
+goog.require('shaka.cast.CastUtils');
+goog.require('shaka.log');
+goog.require('shaka.media.DrmEngine');
+goog.require('shaka.media.ManifestParser');
+goog.require('shaka.media.StreamingEngine');
+goog.require('shaka.net.NetworkingEngine');
+goog.require('shaka.test.TestScheme');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.util.EventManager');
+goog.require('shaka.util.Functional');
+goog.require('shaka.util.Iterables');
+goog.require('shaka.util.Platform');
+goog.require('shaka.util.PublicPromise');
 
 // The receiver is only meant to run on the Chromecast, so we have the
 // ability to use modern APIs there that may not be available on all of the
@@ -131,6 +148,11 @@ filterDescribe('CastReceiver', castReceiverIntegrationSupport, () => {
     drmIt('sends reasonably-sized updates', async () => {
       // Use an encrypted asset, to make sure DRM info doesn't balloon the size.
       fakeInitState.manifest = 'test:sintel-enc';
+      fakeInitState.player.configure['drm'] = {
+        'servers': {
+          'com.widevine.alpha': 'https://cwip-shaka-proxy.appspot.com/no_auth',
+        },
+      };
 
       const p = waitForLoadedData();
 
@@ -154,6 +176,11 @@ filterDescribe('CastReceiver', castReceiverIntegrationSupport, () => {
     drmIt('has reasonable average message size', async () => {
       // Use an encrypted asset, to make sure DRM info doesn't balloon the size.
       fakeInitState.manifest = 'test:sintel-enc';
+      fakeInitState.player.configure['drm'] = {
+        'servers': {
+          'com.widevine.alpha': 'https://cwip-shaka-proxy.appspot.com/no_auth',
+        },
+      };
 
       const p = waitForLoadedData();
 
@@ -265,6 +292,13 @@ filterDescribe('CastReceiver', castReceiverIntegrationSupport, () => {
       CastReceiverManager: {
         getInstance: () => mockReceiverManager,
       },
+      media: {
+        // Defined by the SDK, but we aren't loading it here.
+        MetadataType: {
+          GENERIC: 0,
+          MUSIC_TRACK: 3,
+        },
+      },
     };
   }
 
@@ -329,8 +363,8 @@ filterDescribe('CastReceiver', castReceiverIntegrationSupport, () => {
   }
 
   /**
-   * @param {?} message
-   * @param {!Object} bus
+   * @param {*} message
+   * @param {!cast.receiver.CastMessageBus} bus
    * @param {string=} senderId
    */
   function fakeIncomingMessage(message, bus, senderId) {

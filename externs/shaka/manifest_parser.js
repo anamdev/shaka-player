@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -99,10 +100,12 @@ shaka.extern.ManifestParser = class {
 /**
  * @typedef {{
  *   networkingEngine: !shaka.net.NetworkingEngine,
- *   filter: function(shaka.extern.Manifest),
+ *   filter: function(shaka.extern.Manifest):!Promise,
+ *   makeTextStreamsForClosedCaptions: function(shaka.extern.Manifest),
  *   onTimelineRegionAdded: function(shaka.extern.TimelineRegionInfo),
  *   onEvent: function(!Event),
- *   onError: function(!shaka.util.Error)
+ *   onError: function(!shaka.util.Error),
+ *   isLowLatencyMode: function():boolean
  * }}
  *
  * @description
@@ -113,15 +116,21 @@ shaka.extern.ManifestParser = class {
  *
  * @property {!shaka.net.NetworkingEngine} networkingEngine
  *   The networking engine to use for network requests.
- * @property {function(shaka.extern.Manifest)} filter
+ * @property {function(shaka.extern.Manifest):!Promise} filter
  *   Should be called when new variants or text streams are added to the
- *   Manifest.
+ *   Manifest.  Note that this operation is asynchronous.
+ * @property {function(shaka.extern.Manifest)} makeTextStreamsForClosedCaptions
+ *   A callback that adds text streams to represent the closed captions of the
+ *   video streams in the Manifest.  Should be called whenever new video streams
+ *   are added to the Manifest.
  * @property {function(shaka.extern.TimelineRegionInfo)} onTimelineRegionAdded
  *   Should be called when a new timeline region is added.
  * @property {function(!Event)} onEvent
  *   Should be called to raise events.
  * @property {function(!shaka.util.Error)} onError
  *   Should be called when an error occurs.
+ * @property {function():boolean} isLowLatencyMode
+ *   Return true if low latency streaming mode is enabled.
  * @exportDoc
  */
 shaka.extern.ManifestParser.PlayerInterface;

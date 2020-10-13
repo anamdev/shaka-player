@@ -1,8 +1,13 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
+
+goog.require('shaka.media.StallDetector');
+goog.require('shaka.media.StallDetector.Implementation');
+goog.require('shaka.test.Util');
 
 describe('StallDetector', () => {
   /**

@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,6 +7,8 @@
 
 goog.provide('shaka.ui.SmallPlayButton');
 
+goog.require('shaka.ui.Controls');
+goog.require('shaka.ui.Enums');
 goog.require('shaka.ui.PlayButton');
 
 
@@ -23,7 +26,7 @@ shaka.ui.SmallPlayButton = class extends shaka.ui.PlayButton {
     super(parent, controls);
 
     this.button.classList.add('shaka-small-play-button');
-    this.button.classList.add('material-icons');
+    this.button.classList.add('material-icons-round');
 
     this.updateIcon();
     this.updateAriaLabel();

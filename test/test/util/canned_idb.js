@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,7 +30,7 @@ shaka.test.CannedIDB = class {
   static async dumpJSON(name, dummyArrayBuffers) {
     const savedDatabase = await this.dump(name);
     const replacer =
-        (key, value) => this.replacer_(dummyArrayBuffers, key, value);
+        (key, value) => this.replacer_(dummyArrayBuffers || false, key, value);
     return JSON.stringify(savedDatabase, replacer);
   }
 
@@ -72,7 +73,9 @@ shaka.test.CannedIDB = class {
    * @return {!Promise} Resolved when the operation is complete.
    */
   static async restoreJSON(name, savedDatabaseJson, wipeDatabase) {
-    const savedDatabase = JSON.parse(savedDatabaseJson, this.reviver_);
+    const savedDatabase =
+      /** @type {shaka.test.CannedIDB.SavedDatabase} */(JSON.parse(
+          savedDatabaseJson, this.reviver_));
     await this.restore(name, savedDatabase, wipeDatabase);
   }
 
@@ -153,7 +156,7 @@ shaka.test.CannedIDB = class {
 
   /**
    * @param {string} name The name of the database to open.
-   * @return {!Promise.<IDBDatabase>} Resolved when the named DB has been
+   * @return {!Promise.<!IDBDatabase>} Resolved when the named DB has been
    *   opened.
    * @private
    */

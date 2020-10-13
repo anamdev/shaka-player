@@ -1,12 +1,26 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
-describe('Player', () => {
-  const Util = shaka.test.Util;
-  const waitUntilPlayheadReaches = Util.waitUntilPlayheadReaches;
+goog.require('goog.Uri');
+goog.require('shaka.Player');
+goog.require('shaka.log');
+goog.require('shaka.media.DrmEngine');
+goog.require('shaka.media.TimeRangesUtils');
+goog.require('shaka.test.FakeAbrManager');
+goog.require('shaka.test.FakeTextDisplayer');
+goog.require('shaka.test.Loader');
+goog.require('shaka.test.TestScheme');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.test.Waiter');
+goog.require('shaka.util.EventManager');
+goog.require('shaka.util.Functional');
+goog.require('shaka.util.Iterables');
 
+describe('Player', () => {
   /** @type {!jasmine.Spy} */
   let onErrorSpy;
 
@@ -19,11 +33,15 @@ describe('Player', () => {
 
   let compiledShaka;
 
+  /** @type {shaka.test.Waiter} */
+  let waiter;
+
   beforeAll(async () => {
     video = shaka.test.UiUtils.createVideoElement();
     document.body.appendChild(video);
 
-    compiledShaka = await Util.loadShaka(getClientArg('uncompiled'));
+    compiledShaka =
+        await shaka.test.Loader.loadShaka(getClientArg('uncompiled'));
   });
 
   beforeEach(async () => {
@@ -32,6 +50,7 @@ describe('Player', () => {
 
     // Grab event manager from the uncompiled library:
     eventManager = new shaka.util.EventManager();
+    waiter = new shaka.test.Waiter(eventManager);
 
     onErrorSpy = jasmine.createSpy('onError');
     onErrorSpy.and.callFake((event) => {
@@ -72,7 +91,7 @@ describe('Player', () => {
       // API and to check for renaming.
       await player.load('test:sintel_compiled');
       video.play();
-      await waitUntilPlayheadReaches(eventManager, video, 1, 10);
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
 
       const stats = player.getStats();
       const expected = {
@@ -85,6 +104,7 @@ describe('Player', () => {
         corruptedFrames: jasmine.any(Number),
         estimatedBandwidth: jasmine.any(Number),
 
+        completionPercent: jasmine.any(Number),
         loadLatency: jasmine.any(Number),
         manifestTimeSeconds: jasmine.any(Number),
         drmTimeSeconds: jasmine.any(Number),
@@ -92,6 +112,9 @@ describe('Player', () => {
         pauseTime: jasmine.any(Number),
         bufferingTime: jasmine.any(Number),
         licenseTime: jasmine.any(Number),
+        liveLatency: jasmine.any(Number),
+
+        maxSegmentDuration: jasmine.any(Number),
 
         // We should have loaded the first Period by now, so we should have a
         // history.
@@ -136,7 +159,7 @@ describe('Player', () => {
     it('does not cause cues to be null', async () => {
       await player.load('test:sintel_compiled');
       video.play();
-      await waitUntilPlayheadReaches(eventManager, video, 1, 10);
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
 
       // This TextTrack was created as part of load() when we set up the
       // TextDisplayer.
@@ -257,7 +280,7 @@ describe('Player', () => {
 
       // Play until a time at which the external cues would be on screen.
       video.play();
-      await waitUntilPlayheadReaches(eventManager, video, 4, 20);
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 4, 20);
 
       expect(player.isTextTrackVisible()).toBe(true);
       expect(displayer.isTextVisible()).toBe(true);
@@ -274,10 +297,6 @@ describe('Player', () => {
 
       player.configure('textDisplayFactory', () => displayer);
 
-      const eventManager = new shaka.util.EventManager();
-      /** @type {shaka.test.Waiter} */
-      const waiter = new shaka.test.Waiter(eventManager);
-
       await player.load('test:sintel_no_text_compiled');
       const locationUri = new goog.Uri(location.href);
       const partialUri = new goog.Uri('/base/test/test/assets/text-clip.vtt');
@@ -293,11 +312,42 @@ describe('Player', () => {
 
       // Play until a time at which the external cues would be on screen.
       video.play();
-      await waitUntilPlayheadReaches(eventManager, video, 4, 20);
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 4, 20);
 
       expect(player.isTextTrackVisible()).toBe(true);
       expect(displayer.isTextVisible()).toBe(true);
       expect(cues.length).toBeGreaterThan(0);
+    });
+
+    // https://github.com/google/shaka-player/issues/2553
+    it('does not change the selected track', async () => {
+      player.configure('streaming.alwaysStreamText', false);
+      await player.load('test:forced_subs_simulation_compiled');
+
+      // In this content, both text tracks have the same language and role, and
+      // so should look identical in terms of choosing one to match a
+      // preference.  This is important to the test, so verify it first.
+      const tracks = player.getTextTracks();
+      expect(tracks[0].language).toBe(tracks[1].language);
+      expect(tracks[0].roles).toEqual(tracks[1].roles);
+
+      const getTracksActive = () => player.getTextTracks().map((t) => t.active);
+
+      // If we choose a track first, then turn on text, the track should not
+      // change.  Try this with both tracks.
+      player.setTextTrackVisibility(false);
+
+      player.selectTextTrack(tracks[0]);
+      expect(getTracksActive()).toEqual([true, false]);
+      player.setTextTrackVisibility(true);
+      expect(getTracksActive()).toEqual([true, false]);
+
+      player.setTextTrackVisibility(false);
+
+      player.selectTextTrack(tracks[1]);
+      expect(getTracksActive()).toEqual([false, true]);
+      player.setTextTrackVisibility(true);
+      expect(getTracksActive()).toEqual([false, true]);
     });
   });  // describe('setTextTrackVisibility')
 
@@ -332,7 +382,7 @@ describe('Player', () => {
     it('at higher playback rates', async () => {
       await player.load('test:sintel_compiled');
       video.play();
-      await waitUntilPlayheadReaches(eventManager, video, 1, 10);
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
 
       // Enabling trick play should change our playback rate to the same rate.
       player.trickPlay(2);
@@ -360,7 +410,7 @@ describe('Player', () => {
       player = new compiledShaka.Player(video);
       await player.load('test:sintel_compiled', 0, testSchemeMimeType);
       video.play();
-      await waitUntilPlayheadReaches(eventManager, video, 1, 10);
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
     });
 
     /**
@@ -399,7 +449,7 @@ describe('Player', () => {
     it('does not throw on destroy', async () => {
       await player.load('test:sintel_compiled');
       video.play();
-      await waitUntilPlayheadReaches(eventManager, video, 1, 10);
+      await waiter.waitUntilPlayheadReachesOrFailOnTimeout(video, 1, 10);
       await player.unload();
       // Before we fixed #1187, the call to destroy() on textDisplayer was
       // renamed in the compiled version and could not be called.
@@ -590,7 +640,7 @@ describe('Player', () => {
           if (arguments.length > 2000) {
             throw new RangeError('Synthetic Range Error');
           }
-          // eslint-disable-next-line no-restricted-syntax
+          // eslint-disable-next-line prefer-spread
           return oldFromCharCode.apply(null, arguments);
         };
         await player.load('/base/test/test/assets/large_file.mpd');
@@ -711,11 +761,17 @@ describe('Player', () => {
 
     function getBufferedAhead() {
       const end = shaka.media.TimeRangesUtils.bufferEnd(video.buffered);
+      if (end == null) {
+        return 0;
+      }
       return end - video.currentTime;
     }
 
     function getBufferedBehind() {
       const start = shaka.media.TimeRangesUtils.bufferStart(video.buffered);
+      if (start == null) {
+        return 0;
+      }
       return video.currentTime - start;
     }
 
@@ -829,4 +885,38 @@ describe('Player', () => {
       await expectAsync(p).toBeRejected();  // Timeout
     });
   });  // describe('adaptation')
+
+  /** Regression test for Issue #2741 */
+  describe('unloading', () => {
+    drmIt('unloads properly after DRM error', async () => {
+      const drmSupport = await shaka.media.DrmEngine.probeSupport();
+      if (!drmSupport['com.widevine.alpha'] &&
+          !drmSupport['com.microsoft.playready']) {
+        pending('Skipping DRM error test, only runs on Widevine and PlayReady');
+      }
+
+      let unloadPromise = null;
+      const errorPromise = new Promise((resolve, reject) => {
+        onErrorSpy.and.callFake((event) => {
+          unloadPromise = player.unload();
+          onErrorSpy.and.callThrough();
+          resolve();
+        });
+      });
+
+      // Load an encrypted asset with the wrong license servers, so it errors.
+      const bogusUrl = 'http://foo/widevine';
+      player.configure('drm.servers', {
+        'com.widevine.alpha': bogusUrl,
+        'com.microsoft.playready': bogusUrl,
+      });
+      await player.load('test:sintel-enc_compiled');
+
+      await errorPromise;
+      expect(unloadPromise).not.toBeNull();
+      if (unloadPromise) {
+        await unloadPromise;
+      }
+    });
+  });  // describe('unloading')
 });

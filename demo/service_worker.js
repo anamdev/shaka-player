@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,7 +16,7 @@
  *
  * @const {string}
  */
-const CACHE_NAME = 'shaka-player-v2.6+';
+const CACHE_NAME = 'shaka-player-v3.0+';
 
 
 /**
@@ -98,8 +99,8 @@ const OPTIONAL_RESOURCES = [
   'https://www.gstatic.com/cv/js/sender/v1/cast_sender.js',
 
   // The IMA ads SDK.
-  'http://imasdk.googleapis.com/js/sdkloader/ima3.js',
-  'http://imasdk.googleapis.com/js/sdkloader/ima3_dai.js',
+  'https://imasdk.googleapis.com/js/sdkloader/ima3.js',
+  'https://imasdk.googleapis.com/js/sdkloader/ima3_dai.js',
 ].map(resolveRelativeUrl);
 
 

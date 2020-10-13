@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,6 +13,20 @@ describe('StringUtils', () => {
     const arr = [0x46, 0xe2, 0x82, 0xac, 0x20, 0xf0, 0x90, 0x8d, 0x88];
     expect(StringUtils.fromUTF8(new Uint8Array(arr)))
         .toBe('F\u20ac \ud800\udf48');
+  });
+
+  it('won\'t break if given cut-off UTF8 character', () => {
+    // This array contains the first half of a 2-byte UTF8 character, stranded
+    // at the very end of the string.
+    const arr1 = [0x53, 0x61, 0x6e, 0x20, 0x4a, 0x6f, 0x73, 0x81];
+    expect(StringUtils.fromUTF8(new Uint8Array(arr1)))
+        .toBe('San Jos\uFFFD');
+
+    // For reasons I don't know, it seems like 0xE9 cannot be the start of a
+    // UTF8 character.  Perhaps it is a reserved number?
+    const arr2 = [0x4a, 0x6f, 0x73, 0xE9, 0x33, 0x33, 0x20, 0x53, 0x61, 0x6e];
+    expect(StringUtils.fromUTF8(new Uint8Array(arr2)))
+        .toBe('Jos\uFFFD33 San');
   });
 
   it('strips the BOM in fromUTF8', () => {

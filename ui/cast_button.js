@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,12 +7,19 @@
 
 goog.provide('shaka.ui.CastButton');
 
+goog.require('shaka.cast.CastProxy');
+goog.require('shaka.ui.Constants');
 goog.require('shaka.ui.Element');
+goog.require('shaka.ui.Enums');
 goog.require('shaka.ui.Locales');
 goog.require('shaka.ui.Localization');
 goog.require('shaka.ui.OverflowMenu');
 goog.require('shaka.ui.Utils');
 goog.require('shaka.util.Dom');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.FakeEvent');
+goog.requireType('shaka.cast.CastProxy');
+goog.requireType('shaka.ui.Controls');
 
 
 /**
@@ -37,7 +45,7 @@ shaka.ui.CastButton = class extends shaka.ui.Element {
 
     /** @private {!HTMLElement} */
     this.castIcon_ = shaka.util.Dom.createHTMLElement('i');
-    this.castIcon_.classList.add('material-icons');
+    this.castIcon_.classList.add('material-icons-round');
     this.castIcon_.textContent = shaka.ui.Enums.MaterialDesignIcons.CAST;
     this.castButton_.appendChild(this.castIcon_);
 

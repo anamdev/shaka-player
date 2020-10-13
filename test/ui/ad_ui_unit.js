@@ -1,11 +1,23 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 
+goog.require('shaka.Player');
+goog.require('shaka.ads.AdManager');
+goog.require('shaka.test.FakeAd');
+goog.require('shaka.test.FakeAdManager');
+goog.require('shaka.test.UiUtils');
+goog.require('shaka.test.Util');
+goog.require('shaka.test.Waiter');
+goog.require('shaka.ui.Locales');
+goog.require('shaka.util.EventManager');
+goog.requireType('shaka.ui.Localization');
+
 describe('Ad UI', () => {
   const UiUtils = shaka.test.UiUtils;
-  /** @type {!Element} */
+  /** @type {!HTMLLinkElement} */
   let cssLink;
   /** @type {!HTMLElement} */
   let container;
@@ -19,7 +31,7 @@ describe('Ad UI', () => {
 
   beforeAll(async () => {
     // Add css file
-    cssLink = document.createElement('link');
+    cssLink = /** @type {!HTMLLinkElement} */(document.createElement('link'));
     await UiUtils.setupCSS(cssLink);
     shaka.Player.setAdManagerFactory(() => new shaka.test.FakeAdManager());
   });

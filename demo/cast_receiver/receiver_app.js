@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -88,6 +89,12 @@ class ShakaReceiverApp {
     asset.applyFilters(this.player_.getNetworkingEngine());
     const config = asset.getConfiguration();
     this.player_.configure(config);
+
+    this.receiver_.clearContentMetadata();
+    this.receiver_.setContentTitle(asset.name);
+    if (asset.iconUri) {
+      this.receiver_.setContentImage(asset.iconUri);
+    }
   }
 
   /** @private */

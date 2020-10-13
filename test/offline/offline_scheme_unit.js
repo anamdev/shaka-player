@@ -1,7 +1,16 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.net.NetworkingEngine');
+goog.require('shaka.net.NetworkingEngine.RequestType');
+goog.require('shaka.offline.OfflineScheme');
+goog.require('shaka.offline.OfflineUri');
+goog.require('shaka.offline.StorageMuxer');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.Error');
 
 /** @return {boolean} */
 const offlineSchemeSupport = () => shaka.offline.StorageMuxer.support();

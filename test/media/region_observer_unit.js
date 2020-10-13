@@ -1,7 +1,13 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('shaka.media.RegionObserver');
+goog.require('shaka.media.RegionTimeline');
+goog.require('shaka.test.Util');
+goog.requireType('shaka.media.IPlayheadObserver');
 
 describe('RegionObserver', () => {
   /** @type {!shaka.media.RegionTimeline} */
@@ -21,7 +27,8 @@ describe('RegionObserver', () => {
     onExitRegion = jasmine.createSpy('onExitRegion');
     onSkipRegion = jasmine.createSpy('onSkipRegion');
 
-    timeline = new shaka.media.RegionTimeline();
+    timeline = new shaka.media.RegionTimeline(
+        () => { return {start: 0, end: 100}; });
 
     observer = new shaka.media.RegionObserver(timeline);
     observer.setListeners(

@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -69,7 +70,8 @@ shaka.extern.UIVolumeBarColors;
  *   fadeDelay: number,
  *   doubleClickForFullscreen: boolean,
  *   enableKeyboardPlaybackControls: boolean,
- *   enableFullscreenOnRotation: boolean
+ *   enableFullscreenOnRotation: boolean,
+ *   forceLandscapeOnFullscreen: boolean
  * }}
  *
  * @property {!Array.<string>} controlPanelElements
@@ -97,7 +99,7 @@ shaka.extern.UIVolumeBarColors;
  *   at the start of the seek bar as played (using the "played" color).
  *   <br>
  *   A value of false matches the default behavior of Chrome's native controls
- *   and Shaka Player v2.6+.
+ *   and Shaka Player v3.0+.
  *   <br>
  *   A value of true matches the default behavior of Shaka Player v2.5.
  *   <br>
@@ -133,12 +135,20 @@ shaka.extern.UIVolumeBarColors;
  * @property {boolean} enableFullscreenOnRotation
  *   Whether or not to enter/exit fullscreen mode when the screen is rotated.
  *   Defaults to true.
+ * @property {boolean} forceLandscapeOnFullscreen
+ *   Whether or not the device should rotate to landscape mode when the video
+ *   enters fullscreen.  Note that this behavior is based on an experimental
+ *   browser API, and may not work on all platforms.
+ *   Defaults to true.
  */
 shaka.extern.UIConfiguration;
 
 
 /**
- * Interface for UI elements.
+ * Interface for UI elements.  UI elements should inherit from the concrete base
+ * class shaka.ui.Element.  The members defined in this extern's constructor are
+ * all available from the base class, and are defined here to keep the compiler
+ * from renaming them.
  *
  * @extends {shaka.util.IReleasable}
  * @interface
@@ -185,6 +195,18 @@ shaka.extern.IUIElement = class {
      * @exportDoc
      */
     this.video;
+
+    /**
+     * @protected {shaka.extern.IAdManager}
+     * @exportDoc
+     */
+    this.adManager;
+
+    /**
+     * @protected {shaka.extern.IAd}
+     * @exportDoc
+     */
+    this.ad;
   }
 
   /**

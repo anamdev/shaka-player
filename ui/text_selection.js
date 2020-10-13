@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -6,13 +7,17 @@
 
 goog.provide('shaka.ui.TextSelection');
 
+goog.require('shaka.ui.Constants');
 goog.require('shaka.ui.Enums');
 goog.require('shaka.ui.LanguageUtils');
 goog.require('shaka.ui.Locales');
 goog.require('shaka.ui.Localization');
 goog.require('shaka.ui.OverflowMenu');
 goog.require('shaka.ui.SettingsMenu');
+goog.require('shaka.ui.Utils');
 goog.require('shaka.util.Dom');
+goog.require('shaka.util.FakeEvent');
+goog.requireType('shaka.ui.Controls');
 
 
 /**
@@ -77,6 +82,8 @@ shaka.ui.TextSelection = class extends shaka.ui.SettingsMenu {
     this.updateLocalizedStrings_();
 
     this.updateTextLanguages_();
+
+    this.onTracksChanged_();
   }
 
 
@@ -161,10 +168,13 @@ shaka.ui.TextSelection = class extends shaka.ui.SettingsMenu {
    * @private
    */
   async onTextTrackSelected_(track) {
+    // setTextTrackVisibility should be called after selectTextTrack.
+    // selectTextTrack sets a text stream, and setTextTrackVisiblity(true)
+    // will set a text stream if it isn't already set. Consequently, reversing
+    // the order of these calls makes two languages display simultaneously
+    // if captions are turned off -> on in a different language.
+    this.player.selectTextTrack(track);
     await this.player.setTextTrackVisibility(true);
-    if (this.player) {  // May have become null while awaiting
-      this.player.selectTextLanguage(track.language, track.roles[0]);
-    }
   }
 
 

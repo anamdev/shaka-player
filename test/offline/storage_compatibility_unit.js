@@ -1,7 +1,21 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
+
+goog.require('goog.asserts');
+goog.require('shaka.offline.ManifestConverter');
+goog.require('shaka.offline.indexeddb.V1StorageCell');
+goog.require('shaka.offline.indexeddb.V2StorageCell');
+goog.require('shaka.offline.indexeddb.V5StorageCell');
+goog.require('shaka.test.CannedIDB');
+goog.require('shaka.test.IndexedDBUtils');
+goog.require('shaka.test.ManifestGenerator');
+goog.require('shaka.test.Util');
+goog.require('shaka.util.Error');
+goog.require('shaka.util.ManifestParserUtils');
+goog.require('shaka.util.StringUtils');
 
 // All of the database dumps referenced below were originally made from the
 // "Heliocentrism" content in our demo app.
@@ -52,7 +66,7 @@ const compatibilityTestsMetadata = [
     // This is the v3 version of the database, which is actually identical to
     // the "clean" version of the v2 database.  The version number was
     // incremented to overcome the "broken" v2 databases.  This format was
-    // introduced in v2.3.2 and deprecated in v2.6.
+    // introduced in v2.3.2 and deprecated in v3.0.
     name: 'v3',
     dbImagePath: '/base/test/test/assets/db-dump-v3.json',
     manifestKey: 1,
@@ -78,7 +92,7 @@ const compatibilityTestsMetadata = [
         /* manifestStore= */ 'manifest-v3'),
   },
   {
-    // This is the v5 version of the database, introduced in v2.6.
+    // This is the v5 version of the database, introduced in v3.0.
     name: 'v5',
     dbImagePath: '/base/test/test/assets/db-dump-v5.json',
     manifestKey: 1,

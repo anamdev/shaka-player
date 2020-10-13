@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -17,6 +18,9 @@ shaka.test.FakeAdManager = class extends shaka.util.FakeEventTarget {
     /** @private {shaka.ads.AdsStats} */
     this.stats_ = new shaka.ads.AdsStats();
   }
+
+  /** @override */
+  setLocale(locale) {}
 
   /** @override */
   initClientSide(adContainer, video) {}
@@ -48,7 +52,12 @@ shaka.test.FakeAdManager = class extends shaka.util.FakeEventTarget {
   /**
    * @override
    */
-  onTimedMetadata(region) {}
+  onDashTimedMetadata(region) {}
+
+  /**
+   * @override
+   */
+  onHlsTimedMetadata(metadata) {}
 
   /**
    * @override

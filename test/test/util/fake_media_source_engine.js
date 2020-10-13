@@ -1,4 +1,5 @@
-/** @license
+/*! @license
+ * Shaka Player
  * Copyright 2016 Google LLC
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -86,6 +87,10 @@ shaka.test.FakeMediaSourceEngine = class {
     /** @type {!jasmine.Spy} */
     this.clear = jasmine.createSpy('clear')
         .and.callFake((type) => this.clearImpl_(type));
+
+    /** @type {!jasmine.Spy} */
+    this.resetCaptionParser = jasmine.createSpy('resetCaptionParser')
+        .and.stub();
 
     /** @type {!jasmine.Spy} */
     this.bufferStart = jasmine.createSpy('bufferStart')
